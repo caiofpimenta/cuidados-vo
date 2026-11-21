@@ -1,0 +1,736 @@
+<title>Cuidados da Vó</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Atkinson+Hyperlegible+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: coluna única de leitura grande, abas fixas embaixo, formulários em folhas que sobem da base. */
+:root{
+  --font:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"Atkinson Hyperlegible Mono",ui-monospace,Consolas,monospace;
+  --bg:#EEF3F5; --surface:#FFFFFF; --surface2:#E4ECEF; --fg:#12202A; --muted:#51646F; --line:#D0DADF;
+  --accent:#0B6E78; --accent-fg:#FFFFFF; --accent-soft:#D6EDEF;
+  --ok:#17703D; --ok-soft:#DCF1E3; --warn:#8F5200; --warn-soft:#FBEBC6; --bad:#B3261E; --bad-soft:#FADCD9;
+  --c1:#0B6E78; --c2:#C2570C; --shadow:0 1px 2px rgba(18,32,42,.06),0 6px 18px rgba(18,32,42,.06);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D151A; --surface:#152129; --surface2:#1D2C36; --fg:#E8F0F4; --muted:#9DB1BD; --line:#2A3B46;
+  --accent:#4CC2CC; --accent-fg:#06262A; --accent-soft:#12363B;
+  --ok:#72D39A; --ok-soft:#14301F; --warn:#F2B64E; --warn-soft:#3A2A0A; --bad:#FF8F85; --bad-soft:#3F1B18;
+  --c1:#4CC2CC; --c2:#F29A5B; --shadow:none; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D151A; --surface:#152129; --surface2:#1D2C36; --fg:#E8F0F4; --muted:#9DB1BD; --line:#2A3B46;
+  --accent:#4CC2CC; --accent-fg:#06262A; --accent-soft:#12363B;
+  --ok:#72D39A; --ok-soft:#14301F; --warn:#F2B64E; --warn-soft:#3A2A0A; --bad:#FF8F85; --bad-soft:#3F1B18;
+  --c1:#4CC2CC; --c2:#F29A5B; --shadow:none; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:17px/1.45 var(--font);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0 112px;-webkit-text-size-adjust:100%}
+.wrap{max-width:640px;margin:0 auto}
+h1,h2,h3{margin:0;line-height:1.2;text-wrap:balance}
+h2{font-size:1.2rem}
+h3{font-size:1rem}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:.875rem}
+
+/* topo */
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 0 14px}
+.top .date{font-size:.9rem;color:var(--muted);text-transform:capitalize}
+.top h1{font-size:1.65rem;letter-spacing:-.01em}
+.top .clock{font-family:var(--mono);font-weight:700;font-size:1.05rem;color:var(--accent)}
+.who{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 14px;font-size:.875rem;max-width:48%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who b{font-weight:700}
+
+/* blocos */
+.stack{display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow)}
+.sec-title{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:8px 2px 0}
+.sec-title h2{font-size:.9rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.notice{border-radius:12px;padding:12px 14px;background:var(--surface2);font-size:.9rem;color:var(--muted)}
+.notice.bad{background:var(--bad-soft);color:var(--bad)}
+
+/* botões */
+.btn{min-height:52px;padding:0 20px;border-radius:14px;border:1px solid var(--line);background:var(--surface);font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+.btn.danger{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
+.btn.sm{min-height:40px;padding:0 14px;font-size:.9rem;border-radius:10px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.actions .btn{min-height:84px;flex-direction:column;gap:2px;font-size:1.05rem}
+.actions .btn small{font-weight:400;opacity:.85;font-size:.8rem}
+
+/* alerta de remédio */
+.alert{border:2px solid var(--warn);background:var(--warn-soft);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.alert h2{color:var(--warn);font-size:1rem;text-transform:uppercase;letter-spacing:.06em}
+.alert .it{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.alert .it .nm{min-width:0;flex:1 1 180px}
+.alert .it .nm b{font-size:1.15rem;display:block}
+
+/* últimas medições */
+.reads{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.read{display:flex;flex-direction:column;gap:6px;min-width:0}
+.read .lbl{font-size:.8rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.read .val{font-size:2rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.read .val small{font-size:.8rem;font-weight:400;color:var(--muted);margin-left:4px}
+.read .when{font-size:.82rem;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 10px;font-size:.8rem;font-weight:700;width:max-content}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.chip.mute{background:var(--surface2);color:var(--muted)}
+.chip.acc{background:var(--accent-soft);color:var(--accent)}
+
+/* horários de remédio do dia */
+.slots{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.slot{display:grid;grid-template-columns:64px 1fr auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.slot:first-child{border-top:0}
+.slot .tm{font-family:var(--mono);font-weight:700;font-size:1.15rem}
+.slot .nm{min-width:0}
+.slot .nm b{display:block;overflow-wrap:anywhere}
+.slot .nm span{font-size:.85rem;color:var(--muted);overflow-wrap:anywhere}
+.slot.done .nm b{text-decoration:line-through;text-decoration-thickness:1px;color:var(--muted)}
+
+/* histórico */
+.seg{display:flex;gap:6px;background:var(--surface2);padding:4px;border-radius:14px}
+.seg button{flex:1;min-height:44px;border:0;background:transparent;border-radius:10px;font-weight:700;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:var(--shadow)}
+.pills{display:flex;gap:8px;flex-wrap:wrap}
+.pill{min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:700;font-size:.9rem}
+.pill[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.chart{width:100%;height:auto;display:block}
+.chart .ax{fill:var(--muted);font-size:10px;font-family:var(--font)}
+.chart .gl{stroke:var(--line);stroke-width:1}
+.chart .rf{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 4}
+.day{margin:12px 2px 0;font-size:.85rem;text-transform:capitalize;color:var(--muted);font-weight:700}
+.rows{list-style:none;margin:6px 0 0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.row{display:grid;grid-template-columns:54px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .tm{font-family:var(--mono);font-weight:700;color:var(--muted)}
+.row .mn{min-width:0}
+.row .mn b{font-size:1.1rem;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.row .by{display:block;font-size:.82rem;color:var(--muted);overflow-wrap:anywhere}
+.row .sd{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.empty{text-align:center;padding:28px 12px;color:var(--muted)}
+.empty b{display:block;color:var(--fg);font-size:1.05rem;margin-bottom:4px}
+
+/* remédios */
+.med{display:flex;flex-direction:column;gap:10px}
+.med .hd{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.med .hd b{font-size:1.2rem;overflow-wrap:anywhere}
+.times{display:flex;gap:6px;flex-wrap:wrap}
+.times .mono{background:var(--surface2);border-radius:8px;padding:2px 9px;font-weight:700}
+
+/* abas */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);
+  display:flex;gap:4px;padding:8px max(12px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.tabs button{flex:1;min-height:56px;border:0;background:transparent;border-radius:14px;font-weight:700;font-size:.95rem;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative}
+.tabs button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent-soft)}
+.tabs .dot{position:absolute;top:6px;right:calc(50% - 22px);min-width:20px;height:20px;border-radius:10px;background:var(--bad);color:#fff;font-size:.75rem;display:flex;align-items:center;justify-content:center;padding:0 5px}
+
+/* folha de formulário */
+.ov{position:fixed;inset:0;z-index:40;background:rgba(5,12,16,.55);display:flex;align-items:flex-end;justify-content:center}
+.panel{background:var(--surface);width:100%;max-width:640px;max-height:92%;overflow:auto;border-radius:22px 22px 0 0;
+  padding:22px max(18px,env(safe-area-inset-left,0px)) calc(22px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+.panel .stamp{background:var(--accent-soft);color:var(--accent);border-radius:10px;padding:8px 12px;font-size:.92rem}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.fld{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:.92rem;min-width:0}
+.fld input[type=text],.fld input[type=number],.fld input[type=time],.fld input[type=date],.fld input[type=datetime-local],.fld textarea{
+  min-height:56px;border:2px solid var(--line);border-radius:12px;padding:0 14px;background:var(--bg);font-weight:400;font-size:1.15rem;width:100%;min-width:0}
+.fld input.big{font-size:1.9rem;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+.fld .u{font-weight:400;color:var(--muted);font-size:.8rem}
+.fld textarea{padding:12px 14px;min-height:72px;resize:vertical;font-size:1rem}
+.opts{display:flex;flex-wrap:wrap;gap:8px}
+.opts label{position:relative}
+.opts input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+.opts span{display:inline-flex;align-items:center;min-height:48px;padding:0 16px;border-radius:12px;border:2px solid var(--line);font-weight:700;background:var(--bg)}
+.opts input:checked+span{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.opts input:focus-visible+span{outline:3px solid var(--accent);outline-offset:2px}
+.err{margin:0;color:var(--bad);font-weight:700;min-height:1.2em}
+.hint{margin:0;font-size:.85rem;color:var(--muted)}
+.btns{display:flex;gap:10px}
+.btns .btn{flex:1}
+.trow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.trow input{flex:1}
+
+/* aviso rápido */
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:60;background:var(--fg);color:var(--bg);padding:12px 18px;border-radius:12px;font-weight:700;max-width:90%;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+@media (prefers-reduced-motion:no-preference){.panel{animation:up .22s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.4}}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="date" id="today-date">&nbsp;</div>
+      <h1>Cuidados da Vó</h1>
+      <div class="clock" id="clock">--:--</div>
+    </div>
+    <button class="who" id="who" type="button" hidden></button>
+  </header>
+  <main id="main" class="stack" aria-live="polite">
+    <div class="notice">Conectando aos registros compartilhados…</div>
+  </main>
+</div>
+
+<nav class="tabs" aria-label="Seções">
+  <button type="button" data-tab="hoje" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Hoje<span class="dot" id="dot" hidden></span></button>
+  <button type="button" data-tab="hist"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v5l3 2"/></svg>Histórico</button>
+  <button type="button" data-tab="meds"><svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-45 12 12)"/><path d="M9.2 9.2l5.6 5.6"/></svg>Remédios</button>
+</nav>
+
+<div class="ov" id="ov" hidden><div class="panel" id="panel" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+'use strict';
+const $=(s,r)=>(r||document).querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const p2=n=>String(n).padStart(2,'0');
+const dayStr=d=>d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+const hm=d=>p2(d.getHours())+':'+p2(d.getMinutes());
+const longDay=d=>new Intl.DateTimeFormat('pt-BR',{weekday:'long',day:'numeric',month:'long'}).format(d);
+const shortDay=d=>new Intl.DateTimeFormat('pt-BR',{weekday:'short',day:'numeric',month:'short'}).format(d);
+const dm=d=>p2(d.getDate())+'/'+p2(d.getMonth()+1);
+const dmHm=d=>dm(d)+' às '+hm(d);
+const MIN=60000;
+
+const S={db:null,user:null,uid:null,isOwner:false,canWrite:true,name:null,regLoaded:false,
+  caregivers:{},entries:{},meds:{},subs:new Set(),tab:'hoje',hist:'pa',range:7,more:60,
+  confirm:null,alerted:new Set(),sig:'',firstTick:true,err:null,loadFailed:false,lastMinute:''};
+
+/* ---------- regras de saúde (faixas gerais) ---------- */
+function paFlag(s,d){
+  if(s>=140||d>=90)return{t:'Alta',c:'bad'};
+  if(s<90||d<60)return{t:'Baixa',c:'warn'};
+  if(s>=130||d>=85)return{t:'Atenção',c:'warn'};
+  return{t:'Normal',c:'ok'};
+}
+function gliFlag(v){
+  if(v<70)return{t:'Baixa',c:'bad'};
+  if(v>=180)return{t:'Alta',c:'bad'};
+  if(v>=140)return{t:'Atenção',c:'warn'};
+  return{t:'Normal',c:'ok'};
+}
+const MOMENTS={jejum:'Em jejum',antes:'Antes de comer',apos:'Depois de comer',deitar:'Ao deitar',outro:'Outro momento'};
+
+/* ---------- dados derivados ---------- */
+const nameOf=uid=>(S.caregivers[uid]&&S.caregivers[uid].name)||'Alguém';
+const allEntries=()=>Object.values(S.entries).flat().sort((a,b)=>b.ts-a.ts);
+const allMeds=()=>Object.values(S.meds).flat();
+function rel(ts){
+  const m=Math.round((Date.now()-ts)/MIN);
+  if(m<1)return'agora mesmo';
+  if(m<60)return'há '+m+' min';
+  const h=Math.floor(m/60);
+  if(h<24)return'há '+h+' h';
+  return dm(new Date(ts));
+}
+function slotsFor(date){
+  const ds=dayStr(date),out=[];
+  const given={};
+  // a entrada mais antiga vence se duas pessoas marcarem a mesma dose
+  for(const e of allEntries().slice().reverse()){ if(e.type==='dose'&&e.sched) given[e.medId+'|'+e.sched]=e; }
+  for(const m of allMeds()){
+    if(m.active===false)continue;
+    if(m.start&&m.start>ds)continue;
+    if(m.end&&m.end<ds)continue;
+    for(const t of (m.times||[])){
+      const sched=ds+'T'+t, key=m.id+'|'+sched, when=new Date(sched);
+      const g=given[key];
+      let st='futuro';
+      if(g)st='dado';
+      else if(when<=new Date()) st=(Date.now()-when.getTime()>60*MIN)?'atrasado':'agora';
+      out.push({med:m,time:t,sched,key,when,given:g,st});
+    }
+  }
+  return out.sort((a,b)=>a.when-b.when||a.med.name.localeCompare(b.med.name));
+}
+const pending=()=>slotsFor(new Date()).filter(s=>s.st==='agora'||s.st==='atrasado');
+
+/* ---------- renderização ---------- */
+function chip(f){return '<span class="chip '+f.c+'">'+esc(f.t)+'</span>'}
+function lastOf(type){return allEntries().find(e=>e.type===type)}
+
+function readCard(label,e){
+  if(!e)return '<div class="read"><span class="lbl">'+label+'</span><span class="val muted">—</span><span class="when">Ainda sem registro</span></div>';
+  const d=new Date(e.ts);
+  let val,f;
+  if(e.type==='pa'){val=e.sys+'/'+e.dia+'<small>mmHg</small>';f=paFlag(e.sys,e.dia)}
+  else{val=e.value+'<small>mg/dL</small>';f=gliFlag(e.value)}
+  return '<div class="read"><span class="lbl">'+label+'</span><span class="val">'+val+'</span>'+chip(f)+
+    '<span class="when">'+rel(e.ts)+' · '+hm(d)+'<br>por '+esc(nameOf(e.uid))+'</span></div>';
+}
+
+function slotRow(s){
+  const m=s.med;
+  let right;
+  if(s.st==='dado'){
+    right='<span class="chip ok">Dado '+hm(new Date(s.given.ts))+'</span>';
+  }else if(s.st==='futuro'){
+    right='<span class="chip mute">Mais tarde</span>';
+  }else{
+    const ask=S.confirm===s.key;
+    right='<button class="btn sm '+(ask?'warn':'primary')+'" data-act="dose" data-key="'+esc(s.key)+'"'+(S.canWrite?'':' disabled')+'>'+(ask?'Confirmar: já dei':'Dei agora')+'</button>';
+  }
+  let sub=esc(m.dose||'');
+  if(m.note)sub+=(sub?' · ':'')+esc(m.note);
+  if(s.st==='dado')sub+=(sub?' · ':'')+'por '+esc(nameOf(s.given.uid));
+  if(s.st==='atrasado')sub+=(sub?' · ':'')+'<b style="color:var(--bad)">atrasado</b>';
+  return '<li class="slot '+(s.st==='dado'?'done':'')+'"><span class="tm">'+esc(s.time)+'</span><div class="nm"><b>'+esc(m.name)+'</b><span>'+sub+'</span></div><div>'+right+'</div></li>';
+}
+
+function viewHoje(){
+  const pend=pending();
+  const slots=slotsFor(new Date());
+  let h='';
+  if(pend.length){
+    h+='<section class="alert" aria-label="Remédios na hora"><h2>Hora do remédio</h2>'+
+      pend.map(s=>'<div class="it"><div class="nm"><b>'+esc(s.med.name)+'</b><span>'+esc(s.med.dose||'')+' · marcado para '+esc(s.time)+(s.st==='atrasado'?' · <b>atrasado</b>':'')+'</span></div>'+
+      '<button class="btn '+(S.confirm===s.key?'warn':'primary')+'" data-act="dose" data-key="'+esc(s.key)+'"'+(S.canWrite?'':' disabled')+'>'+(S.confirm===s.key?'Confirmar: já dei':'Dei agora')+'</button></div>').join('')+
+      '</section>';
+  }
+  h+='<div class="actions"><button class="btn primary" data-act="new-pa"'+(S.canWrite?'':' disabled')+'>Registrar pressão<small>data e hora automáticas</small></button>'+
+     '<button class="btn primary" data-act="new-gli"'+(S.canWrite?'':' disabled')+'>Registrar glicemia<small>data e hora automáticas</small></button></div>';
+  h+='<div class="sec-title"><h2>Última medição</h2></div><div class="card reads">'+readCard('Pressão',lastOf('pa'))+readCard('Glicemia',lastOf('gli'))+'</div>';
+  h+='<div class="sec-title"><h2>Remédios de hoje</h2><span class="small muted">'+slots.filter(s=>s.st==='dado').length+' de '+slots.length+' dados</span></div>';
+  if(slots.length){
+    h+='<div class="card"><ul class="slots">'+slots.map(slotRow).join('')+'</ul></div>';
+  }else{
+    h+='<div class="card empty"><b>Nenhum remédio para hoje</b>Cadastre os remédios na aba Remédios para receber os avisos de horário.</div>';
+  }
+  if('Notification' in window&&Notification.permission==='default'){
+    h+='<button class="btn" data-act="notif">Ativar avisos neste aparelho</button>';
+  }
+  h+='<p class="hint">Os avisos de horário tocam enquanto o app estiver aberto neste aparelho. Quando alguém marca uma dose como dada, todos veem na hora.</p>';
+  return h;
+}
+
+/* gráfico em SVG com uma única escala */
+function chartSvg(series,refs,fromT,toT){
+  const W=360,H=190,L=36,R=14,T=12,B=26;
+  const vals=[];series.forEach(s=>s.pts.forEach(p=>vals.push(p.v)));
+  if(!vals.length)return '<div class="empty">Sem medições neste período.</div>';
+  refs.forEach(r=>vals.push(r.v));
+  let lo=Math.min(...vals)-8,hi=Math.max(...vals)+8;
+  const span0=hi-lo,step=span0<=110?20:span0<=260?50:100;
+  lo=Math.floor(lo/step)*step;hi=Math.ceil(hi/step)*step;
+  const X=t=>L+(t-fromT)/(toT-fromT)*(W-L-R);
+  const Y=v=>T+(1-(v-lo)/(hi-lo))*(H-T-B);
+  let g='';
+  for(let v=lo;v<=hi;v+=step){g+='<line class="gl" x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(v)+'" y2="'+Y(v)+'"/><text class="ax" x="'+(L-6)+'" y="'+(Y(v)+3)+'" text-anchor="end">'+v+'</text>'}
+  const days=Math.round((toT-fromT)/86400000),nt=days<=7?days:4;
+  for(let i=0;i<=nt;i++){
+    const t=fromT+(toT-fromT)*i/nt,d=new Date(t);
+    g+='<text class="ax" x="'+X(t)+'" y="'+(H-8)+'" text-anchor="'+(i===0?'start':i===nt?'end':'middle')+'">'+dm(d)+'</text>';
+  }
+  refs.forEach(r=>{g+='<line class="rf" x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(r.v)+'" y2="'+Y(r.v)+'"/><text class="ax" x="'+(W-R)+'" y="'+(Y(r.v)-3)+'" text-anchor="end">'+esc(r.l)+'</text>'});
+  series.forEach(s=>{
+    const pts=s.pts.slice().sort((a,b)=>a.t-b.t);
+    if(pts.length>1)g+='<polyline fill="none" stroke="'+s.color+'" stroke-width="2" stroke-linejoin="round" points="'+pts.map(p=>X(p.t).toFixed(1)+','+Y(p.v).toFixed(1)).join(' ')+'"/>';
+    pts.forEach(p=>{g+='<circle cx="'+X(p.t).toFixed(1)+'" cy="'+Y(p.v).toFixed(1)+'" r="3.5" fill="'+s.color+'" stroke="var(--surface)" stroke-width="1.5"/>'});
+  });
+  return '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Gráfico das medições">'+g+'</svg>';
+}
+
+function entryRow(e){
+  const d=new Date(e.ts);let main,side='';
+  if(e.type==='pa'){
+    main='<b>'+e.sys+'/'+e.dia+' <span class="muted small">mmHg</span></b>'+(e.pulse?'<span class="by">Pulso '+e.pulse+' bpm</span>':'');
+    side=chip(paFlag(e.sys,e.dia));
+  }else if(e.type==='gli'){
+    main='<b>'+e.value+' <span class="muted small">mg/dL</span></b><span class="by">'+esc(MOMENTS[e.moment]||'')+'</span>';
+    side=chip(gliFlag(e.value));
+  }else{
+    main='<b>'+esc(e.medName)+'</b><span class="by">'+esc(e.dose||'')+(e.sched?' · marcado para '+esc(e.sched.split('T')[1]):'')+'</span>';
+    side='<span class="chip ok">Dado</span>';
+  }
+  let by='<span class="by">por '+esc(nameOf(e.uid))+(e.editedAt?' · corrigido pelo administrador':'')+'</span>';
+  if(e.note)by+='<span class="by">“'+esc(e.note)+'”</span>';
+  const edit=S.isOwner?'<button class="btn sm" data-act="edit-entry" data-uid="'+esc(e.uid)+'" data-id="'+esc(e.id)+'">Corrigir</button>':'';
+  return '<li class="row"><span class="tm">'+hm(d)+'</span><div class="mn">'+main+by+'</div><div class="sd">'+side+edit+'</div></li>';
+}
+
+function viewHist(){
+  const types=[['pa','Pressão'],['gli','Glicemia'],['dose','Remédios']];
+  let h='<div class="seg" role="group" aria-label="Tipo de registro">'+types.map(t=>'<button type="button" data-act="hist" data-v="'+t[0]+'" aria-pressed="'+(S.hist===t[0])+'">'+t[1]+'</button>').join('')+'</div>';
+  const list=allEntries().filter(e=>e.type===S.hist);
+  if(S.hist!=='dose'){
+    const toT=Date.now(),fromT=toT-S.range*86400000;
+    h+='<div class="pills" role="group" aria-label="Período"><button class="pill" data-act="range" data-v="7" aria-pressed="'+(S.range===7)+'">7 dias</button><button class="pill" data-act="range" data-v="30" aria-pressed="'+(S.range===30)+'">30 dias</button></div>';
+    const inR=list.filter(e=>e.ts>=fromT);
+    let series,refs,leg;
+    if(S.hist==='pa'){
+      series=[{color:'var(--c1)',pts:inR.map(e=>({t:e.ts,v:e.sys}))},{color:'var(--c2)',pts:inR.map(e=>({t:e.ts,v:e.dia}))}];
+      refs=[{v:140,l:'140'},{v:90,l:'90'}];
+      leg='<span><i style="background:var(--c1)"></i>Máxima</span><span><i style="background:var(--c2)"></i>Mínima</span><span>Linhas tracejadas: 140 e 90</span>';
+    }else{
+      series=[{color:'var(--c1)',pts:inR.map(e=>({t:e.ts,v:e.value}))}];
+      refs=[{v:70,l:'70'},{v:180,l:'180'}];
+      leg='<span><i style="background:var(--c1)"></i>Glicemia (mg/dL)</span><span>Linhas tracejadas: 70 e 180</span>';
+    }
+    h+='<div class="card stack" style="gap:10px"><div class="legend">'+leg+'</div>'+chartSvg(series,refs,fromT,toT)+'</div>';
+  }
+  if(!list.length){
+    h+='<div class="card empty"><b>Nada registrado ainda</b>Os registros de todos os cuidadores aparecem aqui.</div>';
+  }else{
+    const shown=list.slice(0,S.more);
+    const groups=new Map();
+    shown.forEach(e=>{const k=dayStr(new Date(e.ts));if(!groups.has(k))groups.set(k,[]);groups.get(k).push(e)});
+    const today=dayStr(new Date()),yest=dayStr(new Date(Date.now()-86400000));
+    groups.forEach((arr,k)=>{
+      const lab=k===today?'Hoje':k===yest?'Ontem':shortDay(new Date(arr[0].ts));
+      h+='<div><div class="day">'+esc(lab)+' · '+arr.length+(arr.length===1?' registro':' registros')+'</div><ul class="rows">'+arr.map(entryRow).join('')+'</ul></div>';
+    });
+    if(list.length>S.more)h+='<button class="btn" data-act="more">Mostrar mais antigos</button>';
+  }
+  h+='<p class="hint">Faixas de cor são referências gerais. Siga os valores combinados com o médico da sua avó.</p>';
+  return h;
+}
+
+function medDuration(m){
+  const today=dayStr(new Date());
+  if(m.active===false)return{t:'Suspenso',c:'mute'};
+  if(m.start&&m.start>today)return{t:'Começa em '+dm(new Date(m.start+'T00:00')),c:'acc'};
+  if(!m.end)return{t:'Uso contínuo',c:'acc'};
+  if(m.end<today)return{t:'Encerrado em '+dm(new Date(m.end+'T00:00')),c:'mute'};
+  const left=Math.round((new Date(m.end+'T00:00')-new Date(today+'T00:00'))/86400000);
+  return{t:'Até '+dm(new Date(m.end+'T00:00'))+(left===0?' (último dia)':' · faltam '+left+' dias'),c:'warn'};
+}
+function medCard(m){
+  const du=medDuration(m);
+  return '<article class="card med"><div class="hd"><div style="min-width:0"><b>'+esc(m.name)+'</b><div class="muted">'+esc(m.dose||'')+'</div></div><span class="chip '+du.c+'">'+esc(du.t)+'</span></div>'+
+    '<div class="times">'+(m.times||[]).map(t=>'<span class="mono">'+esc(t)+'</span>').join('')+'</div>'+
+    (m.note?'<div class="small muted">'+esc(m.note)+'</div>':'')+
+    '<div class="small muted">Cadastrado por '+esc(nameOf(m.uid))+'</div>'+
+    (S.isOwner?'<div><button class="btn sm" data-act="edit-med" data-uid="'+esc(m.uid)+'" data-id="'+esc(m.id)+'">Corrigir ou encerrar</button></div>':'')+'</article>';
+}
+function viewMeds(){
+  const ms=allMeds().sort((a,b)=>a.name.localeCompare(b.name));
+  const today=dayStr(new Date());
+  const cur=ms.filter(m=>m.active!==false&&(!m.end||m.end>=today));
+  const old=ms.filter(m=>!cur.includes(m));
+  let h='<button class="btn primary" data-act="new-med"'+(S.canWrite?'':' disabled')+'>Cadastrar remédio</button>';
+  h+='<div class="sec-title"><h2>Em uso</h2><span class="small muted">'+cur.length+'</span></div>';
+  h+=cur.length?cur.map(medCard).join(''):'<div class="card empty"><b>Nenhum remédio cadastrado</b>Informe nome, dose e horários. Todos os cuidadores passam a ver a lista e a receber o aviso na hora certa.</div>';
+  if(old.length){h+='<div class="sec-title"><h2>Encerrados ou suspensos</h2></div>'+old.map(medCard).join('')}
+  h+='<p class="hint">Depois de cadastrado, só o administrador do app corrige ou encerra um remédio.</p>';
+  return h;
+}
+
+function render(){
+  const main=$('#main');
+  const t=new Date();
+  $('#today-date').textContent=longDay(t);
+  const who=$('#who');
+  if(S.name){who.hidden=false;who.innerHTML='Você: <b>'+esc(S.name)+'</b>'+(S.isOwner?' · admin':'')}
+  document.querySelectorAll('.tabs button').forEach(b=>{if(b.dataset.tab===S.tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
+  const n=pending().length;
+  const dot=$('#dot');dot.hidden=!n;dot.textContent=n;
+  document.title=(n?'('+n+') ':'')+'Cuidados da Vó';
+  let h='';
+  if(!S.db){
+    main.innerHTML='<div class="notice'+(S.loadFailed?' bad':'')+'">'+(S.loadFailed?'Não foi possível abrir os registros compartilhados. Entre na sua conta Claude, confirme que recebeu o convite para este app e recarregue a página.':'Conectando aos registros compartilhados…')+'</div>';
+    return;
+  }
+  if(S.err)h+='<div class="notice bad">Houve um problema ao sincronizar ('+esc(S.err)+'). Recarregue a página se os dados não atualizarem.</div>';
+  if(!S.canWrite)h+='<div class="notice bad">Sua conta só pode ver os registros. Peça ao administrador para dar acesso de colaborador para você registrar.</div>';
+  h+=S.tab==='hoje'?viewHoje():S.tab==='hist'?viewHist():viewMeds();
+  main.innerHTML=h;
+}
+
+/* ---------- folhas (formulários) ---------- */
+let sheetOnClose=null;
+function openSheet(html,opts){
+  opts=opts||{};
+  const ov=$('#ov'),p=$('#panel');
+  p.innerHTML=html;ov.hidden=false;ov.dataset.lock=opts.lock?'1':'';
+  sheetOnClose=opts.onClose||null;
+  setTimeout(()=>{const f=p.querySelector('[autofocus],input,select,button');if(f&&!opts.noFocus)f.focus()},30);
+  tickStamp();
+}
+function closeSheet(){
+  const ov=$('#ov');ov.hidden=true;$('#panel').innerHTML='';
+  if(sheetOnClose){sheetOnClose();sheetOnClose=null}
+}
+function toast(msg){
+  const t=$('#toast');t.textContent=msg;t.hidden=false;
+  clearTimeout(toast.h);toast.h=setTimeout(()=>{t.hidden=true},3200);
+}
+function tickStamp(){
+  const d=new Date();
+  document.querySelectorAll('[data-stamp]').forEach(el=>{el.textContent=dmHm(d)});
+}
+const setErr=m=>{const e=$('#f-err');if(e)e.textContent=m||''};
+const numVal=id=>{const el=$('#'+id);const v=el&&el.value.trim();return v===''||v==null?NaN:Number(v)};
+
+async function guardedWrite(fn,okMsg){
+  const b=$('#save');if(b)b.disabled=true;
+  try{await fn();closeSheet();if(okMsg)toast(okMsg);}
+  catch(e){
+    if(b)b.disabled=false;
+    if(e&&e.code==='invalid_argument'){S.canWrite=false;render();setErr('Sua conta não tem permissão para gravar. Peça acesso de colaborador ao administrador.')}
+    else setErr('Não foi possível salvar. Verifique a conexão e tente de novo.');
+  }
+}
+const addEntry=data=>S.db.collection('records/'+S.uid+'/entries').add(Object.assign({},data,{ts:Date.now(),by:S.uid}));
+
+function sheetPA(){
+  openSheet('<h2>Pressão arterial</h2><div class="stamp">Será registrada em <b data-stamp></b> (hora deste aparelho)</div>'+
+    '<div class="fields"><label class="fld">Máxima<span class="u">o número maior</span><input class="big" id="f-sys" type="number" inputmode="numeric" min="50" max="260" autofocus></label>'+
+    '<label class="fld">Mínima<span class="u">o número menor</span><input class="big" id="f-dia" type="number" inputmode="numeric" min="30" max="160"></label>'+
+    '<label class="fld">Pulso<span class="u">opcional, bpm</span><input class="big" id="f-pul" type="number" inputmode="numeric" min="30" max="220"></label></div>'+
+    '<label class="fld">Observação (opcional)<input id="f-note" type="text" maxlength="140" placeholder="Ex.: sentada, após o café"></label>'+
+    '<p class="err" id="f-err" role="alert"></p><p class="hint">Depois de salvo, só o administrador consegue corrigir.</p>'+
+    '<div class="btns"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="save">Salvar</button></div>');
+  $('#save').onclick=()=>{
+    const s=numVal('f-sys'),d=numVal('f-dia'),pl=numVal('f-pul');
+    if(!(s>=50&&s<=260))return setErr('Informe a máxima entre 50 e 260.');
+    if(!(d>=30&&d<=160))return setErr('Informe a mínima entre 30 e 160.');
+    if(s<=d)return setErr('A máxima precisa ser maior que a mínima.');
+    if(!isNaN(pl)&&!(pl>=30&&pl<=220))return setErr('O pulso deve estar entre 30 e 220.');
+    const data={type:'pa',sys:Math.round(s),dia:Math.round(d)};
+    if(!isNaN(pl))data.pulse=Math.round(pl);
+    const note=$('#f-note').value.trim();if(note)data.note=note;
+    guardedWrite(()=>addEntry(data),'Pressão registrada');
+  };
+}
+function momentOpts(sel){
+  return Object.keys(MOMENTS).map(k=>'<label><input type="radio" name="f-mom" value="'+k+'"'+(k===sel?' checked':'')+'><span>'+MOMENTS[k]+'</span></label>').join('');
+}
+function sheetGli(){
+  openSheet('<h2>Glicemia</h2><div class="stamp">Será registrada em <b data-stamp></b> (hora deste aparelho)</div>'+
+    '<label class="fld">Valor<span class="u">mg/dL</span><input class="big" id="f-val" type="number" inputmode="numeric" min="20" max="600" autofocus></label>'+
+    '<div class="fld" role="group" aria-label="Momento">Momento da medição<div class="opts">'+momentOpts('jejum')+'</div></div>'+
+    '<label class="fld">Observação (opcional)<input id="f-note" type="text" maxlength="140" placeholder="Ex.: tontura, suor frio"></label>'+
+    '<p class="err" id="f-err" role="alert"></p><p class="hint">Depois de salvo, só o administrador consegue corrigir.</p>'+
+    '<div class="btns"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="save">Salvar</button></div>');
+  $('#save').onclick=()=>{
+    const v=numVal('f-val');
+    if(!(v>=20&&v<=600))return setErr('Informe o valor entre 20 e 600 mg/dL.');
+    const m=(document.querySelector('input[name="f-mom"]:checked')||{}).value||'outro';
+    const data={type:'gli',value:Math.round(v),moment:m};
+    const note=$('#f-note').value.trim();if(note)data.note=note;
+    guardedWrite(()=>addEntry(data),'Glicemia registrada');
+  };
+}
+
+function timeRow(v){return '<div class="trow"><input type="time" value="'+esc(v||'')+'" aria-label="Horário"><button type="button" class="btn sm" data-rmtime aria-label="Remover horário">Remover</button></div>'}
+function sheetMed(m){
+  const edit=!!m;
+  const times=(m&&m.times&&m.times.length?m.times:['08:00']);
+  const cont=edit?!m.end:true;
+  openSheet('<h2>'+(edit?'Corrigir remédio':'Cadastrar remédio')+'</h2>'+
+    '<label class="fld">Nome do remédio<input id="f-name" type="text" maxlength="80" value="'+esc(m&&m.name)+'" placeholder="Ex.: Losartana" autofocus></label>'+
+    '<label class="fld">Dose<input id="f-dose" type="text" maxlength="80" value="'+esc(m&&m.dose)+'" placeholder="Ex.: 50 mg, 1 comprimido"></label>'+
+    '<div class="fld">Horários do dia<div id="f-times">'+times.map(timeRow).join('')+'</div><button type="button" class="btn sm" id="add-time" style="align-self:flex-start">Adicionar horário</button></div>'+
+    '<div class="fld" role="group" aria-label="Duração">Duração<div class="opts"><label><input type="radio" name="f-dur" value="cont"'+(cont?' checked':'')+'><span>Uso contínuo</span></label><label><input type="radio" name="f-dur" value="lim"'+(cont?'':' checked')+'><span>Por um período</span></label></div></div>'+
+    '<div class="fields"><label class="fld">Começa em<input id="f-start" type="date" value="'+esc((m&&m.start)||dayStr(new Date()))+'"></label>'+
+    '<label class="fld" id="end-wrap"'+(cont?' hidden':'')+'>Termina em<input id="f-end" type="date" value="'+esc((m&&m.end)||'')+'"></label></div>'+
+    '<label class="fld">Observação (opcional)<input id="f-note" type="text" maxlength="140" value="'+esc(m&&m.note)+'" placeholder="Ex.: depois do café da manhã"></label>'+
+    (edit?'<div class="fld" role="group" aria-label="Situação">Situação<div class="opts"><label><input type="radio" name="f-act" value="1"'+(m.active!==false?' checked':'')+'><span>Em uso</span></label><label><input type="radio" name="f-act" value="0"'+(m.active===false?' checked':'')+'><span>Suspenso</span></label></div></div>':'')+
+    '<p class="err" id="f-err" role="alert"></p>'+
+    '<p class="hint">'+(edit?'Como administrador, você pode corrigir qualquer remédio.':'Depois de cadastrado, só o administrador consegue corrigir.')+'</p>'+
+    '<div class="btns"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="save">Salvar</button></div>'+
+    (edit?'<button class="btn danger" id="del">Apagar remédio</button>':''));
+  const p=$('#panel');
+  const sync=()=>{$('#end-wrap').hidden=(document.querySelector('input[name="f-dur"]:checked').value==='cont')};
+  p.querySelectorAll('input[name="f-dur"]').forEach(r=>r.onchange=sync);
+  $('#add-time').onclick=()=>{$('#f-times').insertAdjacentHTML('beforeend',timeRow(''))};
+  p.onclick=ev=>{const b=ev.target.closest('[data-rmtime]');if(b&&$('#f-times').children.length>1)b.parentElement.remove()};
+  $('#save').onclick=()=>{
+    const name=$('#f-name').value.trim(),dose=$('#f-dose').value.trim();
+    const times=[...new Set([...document.querySelectorAll('#f-times input')].map(i=>i.value).filter(Boolean))].sort();
+    const isCont=document.querySelector('input[name="f-dur"]:checked').value==='cont';
+    const start=$('#f-start').value,end=$('#f-end').value;
+    if(!name)return setErr('Informe o nome do remédio.');
+    if(!dose)return setErr('Informe a dose.');
+    if(!times.length)return setErr('Informe pelo menos um horário.');
+    if(!start)return setErr('Informe quando começa.');
+    if(!isCont&&!end)return setErr('Informe quando termina.');
+    if(!isCont&&end<start)return setErr('A data final precisa ser depois da inicial.');
+    const data={name,dose,times,start,end:isCont?null:end,continuous:isCont,note:$('#f-note').value.trim()};
+    if(edit){
+      data.active=document.querySelector('input[name="f-act"]:checked').value==='1';data.editedAt=Date.now();
+      guardedWrite(()=>S.db.doc('meds/'+m.uid+'/items/'+m.id).update(data),'Remédio corrigido');
+    }else{
+      data.active=true;data.createdAt=Date.now();data.by=S.uid;
+      guardedWrite(()=>S.db.collection('meds/'+S.uid+'/items').add(data),'Remédio cadastrado');
+    }
+  };
+  if(edit){
+    $('#del').onclick=function(){
+      if(!this.dataset.ask){this.dataset.ask='1';this.textContent='Toque de novo para apagar de vez';return}
+      guardedWrite(()=>S.db.doc('meds/'+m.uid+'/items/'+m.id).delete(),'Remédio apagado');
+    };
+  }
+}
+
+function toLocalInput(ts){const d=new Date(ts);return dayStr(d)+'T'+hm(d)}
+function sheetEditEntry(e){
+  let fields='';
+  if(e.type==='pa')fields='<div class="fields"><label class="fld">Máxima<input class="big" id="f-sys" type="number" inputmode="numeric" value="'+e.sys+'"></label><label class="fld">Mínima<input class="big" id="f-dia" type="number" inputmode="numeric" value="'+e.dia+'"></label><label class="fld">Pulso<input class="big" id="f-pul" type="number" inputmode="numeric" value="'+(e.pulse||'')+'"></label></div>';
+  else if(e.type==='gli')fields='<label class="fld">Valor (mg/dL)<input class="big" id="f-val" type="number" inputmode="numeric" value="'+e.value+'"></label><div class="fld" role="group" aria-label="Momento">Momento<div class="opts">'+momentOpts(e.moment)+'</div></div>';
+  else fields='<p>'+esc(e.medName)+' · '+esc(e.dose||'')+'</p>';
+  openSheet('<h2>Corrigir registro</h2><p class="hint">Registro de '+esc(nameOf(e.uid))+'. A correção fica marcada como feita pelo administrador.</p>'+fields+
+    '<label class="fld">Data e hora<input id="f-dt" type="datetime-local" value="'+toLocalInput(e.ts)+'"></label>'+
+    '<label class="fld">Observação<input id="f-note" type="text" maxlength="140" value="'+esc(e.note)+'"></label>'+
+    '<p class="err" id="f-err" role="alert"></p>'+
+    '<div class="btns"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="save">Salvar</button></div>'+
+    '<button class="btn danger" id="del">Apagar registro</button>');
+  const path='records/'+e.uid+'/entries/'+e.id;
+  $('#save').onclick=()=>{
+    const ts=new Date($('#f-dt').value).getTime();
+    if(isNaN(ts))return setErr('Data e hora inválidas.');
+    const data={ts,note:$('#f-note').value.trim(),editedAt:Date.now()};
+    if(e.type==='pa'){
+      const s=numVal('f-sys'),d=numVal('f-dia'),pl=numVal('f-pul');
+      if(!(s>=50&&s<=260&&d>=30&&d<=160&&s>d))return setErr('Confira a máxima e a mínima.');
+      data.sys=Math.round(s);data.dia=Math.round(d);data.pulse=isNaN(pl)?null:Math.round(pl);
+    }else if(e.type==='gli'){
+      const v=numVal('f-val');
+      if(!(v>=20&&v<=600))return setErr('Confira o valor.');
+      data.value=Math.round(v);data.moment=(document.querySelector('input[name="f-mom"]:checked')||{}).value||'outro';
+    }
+    guardedWrite(()=>S.db.doc(path).update(data),'Registro corrigido');
+  };
+  $('#del').onclick=function(){
+    if(!this.dataset.ask){this.dataset.ask='1';this.textContent='Toque de novo para apagar de vez';return}
+    guardedWrite(()=>S.db.doc(path).delete(),'Registro apagado');
+  };
+}
+
+function sheetName(first){
+  openSheet('<h2>'+(first?'Bem-vindo(a)':'Seu nome no app')+'</h2><p class="muted" style="margin:0">Como os outros cuidadores devem ver você? Ele aparece em cada registro que você fizer.</p>'+
+    '<label class="fld">Seu nome<input id="f-nm" type="text" maxlength="40" value="'+esc(S.name)+'" placeholder="Ex.: Maria (filha)" autofocus></label>'+
+    '<p class="err" id="f-err" role="alert"></p>'+
+    '<div class="btns">'+(first?'':'<button class="btn" data-close>Cancelar</button>')+'<button class="btn primary" id="save">Salvar</button></div>',{lock:first});
+  $('#save').onclick=()=>{
+    const n=$('#f-nm').value.trim();
+    if(!n)return setErr('Escreva seu nome.');
+    guardedWrite(async()=>{await S.db.doc('caregivers/'+S.uid).set({name:n,joinedAt:Date.now()});S.name=n;S.caregivers[S.uid]={name:n};render()},'Nome salvo');
+  };
+}
+
+/* ---------- aviso de hora do remédio ---------- */
+let actx=null;
+function beep(){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    [0,.28,.56].forEach(t=>{const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=880;g.gain.value=.18;o.connect(g);g.connect(actx.destination);o.start(actx.currentTime+t);o.stop(actx.currentTime+t+.16)});
+  }catch(e){}
+  try{if(navigator.vibrate)navigator.vibrate([250,120,250])}catch(e){}
+}
+function alertNew(){
+  const pend=pending();let fresh=[];
+  pend.forEach(s=>{
+    if(S.alerted.has(s.key))return;
+    S.alerted.add(s.key);
+    const lateMin=(Date.now()-s.when.getTime())/MIN;
+    if(S.firstTick&&lateMin>60)return;
+    fresh.push(s);
+  });
+  if(fresh.length){
+    beep();
+    try{if('Notification' in window&&Notification.permission==='granted')new Notification('Hora do remédio',{body:fresh.map(s=>s.med.name+' · '+s.time).join('\n')})}catch(e){}
+  }
+  S.firstTick=false;
+}
+function tick(){
+  const now=new Date();
+  $('#clock').textContent=hm(now);
+  tickStamp();
+  if(!S.db)return;
+  const sig=pending().map(s=>s.key).join(',');
+  const minute=dayStr(now)+hm(now);
+  if(sig!==S.sig){S.sig=sig;alertNew();render()}
+  else if(minute!==S.lastMinute){S.lastMinute=minute;render()}
+}
+
+/* ---------- assinaturas ao banco compartilhado ---------- */
+function subscribeUid(uid){
+  if(S.subs.has(uid))return;S.subs.add(uid);
+  const fail=e=>{S.err=(e&&e.code)||'erro';render()};
+  S.db.collection('records/'+uid+'/entries').orderBy('ts','desc').limit(500).onSnapshot(snap=>{
+    S.entries[uid]=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id,uid}));render();
+  },fail);
+  S.db.collection('meds/'+uid+'/items').onSnapshot(snap=>{
+    S.meds[uid]=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id,uid}));render();
+  },fail);
+}
+
+async function init(){
+  render();
+  const loadTimer=setTimeout(()=>{if(!S.db){S.loadFailed=true;render()}},12000);
+  let db=null,user=null;
+  try{ if(window.claude&&window.claude.use){[db,user]=await Promise.all([window.claude.use('db'),window.claude.use('user')])} }catch(e){}
+  clearTimeout(loadTimer);
+  if(!db||!user){S.loadFailed=true;render();return}
+  S.db=db;S.user=user;
+  try{S.uid=await user.id()}catch(e){}
+  if(!S.uid){S.db=null;S.loadFailed=true;render();return}
+  try{S.isOwner=!!(await user.isOwner())}catch(e){}
+  try{const w=await user.can('data.write');S.canWrite=(w===false)?false:true}catch(e){}
+  subscribeUid(S.uid);
+  db.collection('caregivers').onSnapshot(snap=>{
+    S.caregivers={};
+    snap.docs.forEach(d=>{S.caregivers[d.id]=d.data();subscribeUid(d.id)});
+    const me=S.caregivers[S.uid];
+    S.name=me?me.name:null;
+    const first=!S.regLoaded;S.regLoaded=true;
+    render();
+    if(!me&&S.canWrite&&first)sheetName(true);
+  },e=>{S.err=(e&&e.code)||'erro';render()});
+  render();
+}
+
+/* ---------- eventos ---------- */
+document.addEventListener('click',ev=>{
+  try{if(!actx)actx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}
+  if(ev.target.closest('[data-close]')){closeSheet();return}
+  if(ev.target===$('#ov')&&!$('#ov').dataset.lock){closeSheet();return}
+  const tb=ev.target.closest('.tabs button');
+  if(tb){S.tab=tb.dataset.tab;S.more=60;render();window.scrollTo(0,0);return}
+  if(ev.target.closest('#who')){sheetName(false);return}
+  const a=ev.target.closest('[data-act]');
+  if(!a||!S.db)return;
+  const act=a.dataset.act;
+  if(act==='new-pa')sheetPA();
+  else if(act==='new-gli')sheetGli();
+  else if(act==='new-med')sheetMed(null);
+  else if(act==='hist'){S.hist=a.dataset.v;S.more=60;render()}
+  else if(act==='range'){S.range=Number(a.dataset.v);render()}
+  else if(act==='more'){S.more+=60;render()}
+  else if(act==='notif'){try{Notification.requestPermission().then(render)}catch(e){}}
+  else if(act==='edit-entry'){const e=(S.entries[a.dataset.uid]||[]).find(x=>x.id===a.dataset.id);if(e)sheetEditEntry(e)}
+  else if(act==='edit-med'){const m=(S.meds[a.dataset.uid]||[]).find(x=>x.id===a.dataset.id);if(m)sheetMed(m)}
+  else if(act==='dose'){
+    const key=a.dataset.key;
+    if(S.confirm!==key){S.confirm=key;render();clearTimeout(S.confirmT);S.confirmT=setTimeout(()=>{S.confirm=null;render()},5000);return}
+    S.confirm=null;
+    const s=slotsFor(new Date()).find(x=>x.key===key);
+    if(!s){render();return}
+    if(s.given){toast('Já foi marcado por '+nameOf(s.given.uid));render();return}
+    addEntry({type:'dose',medId:s.med.id,medName:s.med.name,dose:s.med.dose||'',sched:s.sched})
+      .then(()=>toast('Dose registrada'))
+      .catch(e=>{if(e&&e.code==='invalid_argument'){S.canWrite=false}toast('Não foi possível registrar. Tente de novo.');render()});
+    render();
+  }
+});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&!$('#ov').hidden&&!$('#ov').dataset.lock)closeSheet()});
+
+tick();
+setInterval(tick,15000);
+init();
+})();
+</script>

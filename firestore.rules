@@ -1,0 +1,115 @@
+rules_version = '2';
+
+// Regras de segurança do Cuidados da Vó.
+// ANTES DE PUBLICAR: troque TROQUE_ESTA_CHAVE (uma vez só, no console do Firebase)
+// por uma chave sua. Ela só serve para criar a conta de administrador na primeira vez.
+// Não grave a chave verdadeira no GitHub.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function isMember() {
+      return signedIn() && exists(/databases/$(database)/documents/caregivers/$(request.auth.uid));
+    }
+    // A instalação inicial só é possível enquanto config/app não existe.
+    function setupOpen() {
+      return !exists(/databases/$(database)/documents/config/app);
+    }
+    function claimingAdmin() {
+      return signedIn()
+        && setupOpen()
+        && existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && setupOpen()
+        && request.resource.data.setupKey == 'TROQUE_ESTA_CHAVE';
+    }
+
+    match /config/app {
+      allow read: if isMember();
+      allow create: if claimingAdmin();
+      allow update: if isAdmin();
+    }
+
+    match /config/secret {
+      allow create: if claimingAdmin();
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /caregivers/{uid} {
+      allow read: if isMember() || (signedIn() && request.auth.uid == uid);
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'username', 'joinCode', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 40
+        && (
+          claimingAdmin()
+          || request.resource.data.joinCode == get(/databases/$(database)/documents/config/secret).data.joinCode
+        );
+      allow update: if isAdmin()
+        || (signedIn() && request.auth.uid == uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+            && request.resource.data.name is string
+            && request.resource.data.name.size() > 0
+            && request.resource.data.name.size() <= 40);
+      allow delete: if isAdmin();
+    }
+
+    function validNumber(d, field, lo, hi) {
+      return d[field] is number && d[field] >= lo && d[field] <= hi;
+    }
+
+    function validEntry(d) {
+      return d.by == request.auth.uid
+        && d.ts == request.time
+        && d.type in ['medicao', 'dose']
+        && (
+          d.type == 'medicao'
+            ? (
+                (('sys' in d && 'dia' in d) || 'glic' in d)
+                && (!('sys' in d) || (validNumber(d, 'sys', 50, 260) && validNumber(d, 'dia', 30, 160) && d.sys > d.dia))
+                && (!('pulse' in d) || validNumber(d, 'pulse', 30, 220))
+                && (!('glic' in d) || validNumber(d, 'glic', 20, 600))
+              )
+            : (
+                'medId' in d && 'medName' in d
+                && (!('units' in d) || validNumber(d, 'units', 0.5, 300))
+              )
+        );
+    }
+
+    // Registros: qualquer cuidador cria; só o administrador corrige ou apaga.
+    match /entries/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && validEntry(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /meds/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && request.resource.data.by == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Aparelhos que recebem notificação.
+    match /tokens/{token} {
+      allow read, delete: if isMember() && resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin();
+      allow create, update: if isMember() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // reminders/*: só o robô de lembretes (que ignora estas regras) escreve.
+  }
+}

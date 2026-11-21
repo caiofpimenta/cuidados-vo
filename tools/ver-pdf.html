@@ -1,0 +1,24 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ver PDF de teste</title>
+<body style="margin:0;background:#888">
+<div id="paginas" style="display:flex;flex-direction:column;gap:8px;align-items:center;padding:8px"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+const arq = new URLSearchParams(location.search).get("arq") || "teste.pdf";
+const alvo = +(new URLSearchParams(location.search).get("pagina") || 0);
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+(async () => {
+  const pdf = await pdfjsLib.getDocument("/tools/_saida/" + arq).promise;
+  document.title = "paginas:" + pdf.numPages;
+  for (let i = 1; i <= pdf.numPages; i++) {
+    if (alvo && i !== alvo) continue;
+    const pg = await pdf.getPage(i);
+    const vp = pg.getViewport({ scale: 1.15 });
+    const c = document.createElement("canvas");
+    c.width = vp.width; c.height = vp.height;
+    document.getElementById("paginas").appendChild(c);
+    await pg.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+  }
+})();
+</script>

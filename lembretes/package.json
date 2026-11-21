@@ -1,0 +1,13 @@
+{
+  "name": "lembretes-cuidados-da-vo",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "enviar": "node enviar.mjs",
+    "teste": "node teste.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}
