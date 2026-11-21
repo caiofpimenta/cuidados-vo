@@ -90,10 +90,24 @@ service cloud.firestore {
         );
     }
 
-    // Registros: qualquer cuidador cria; só o administrador corrige ou apaga.
+    // Importação de histórico (só administrador): medições antigas, com a data original.
+    function validImport(d) {
+      return d.by == request.auth.uid
+        && d.type == 'medicao'
+        && d.importado == true
+        && d.ts is timestamp
+        && d.ts < request.time
+        && (('sys' in d && 'dia' in d) || 'glic' in d)
+        && (!('sys' in d) || (validNumber(d, 'sys', 50, 260) && validNumber(d, 'dia', 30, 160) && d.sys > d.dia))
+        && (!('pulse' in d) || validNumber(d, 'pulse', 30, 220))
+        && (!('glic' in d) || validNumber(d, 'glic', 20, 600));
+    }
+
+    // Registros: qualquer cuidador cria; só o administrador corrige, apaga ou importa histórico.
     match /entries/{id} {
       allow read: if isMember();
-      allow create: if isMember() && validEntry(request.resource.data);
+      allow create: if (isMember() && validEntry(request.resource.data))
+        || (isAdmin() && validImport(request.resource.data));
       allow update, delete: if isAdmin();
     }
 

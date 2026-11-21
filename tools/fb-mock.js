@@ -43,7 +43,7 @@ function docsDe(ref) {
     if (c.t === "where") {
       docs = docs.filter(x => {
         const a = valor(x.d[c.campo]), b = valor(c.v);
-        return c.op === ">=" ? a >= b : c.op === "<=" ? a <= b : c.op === "==" ? a === b : true;
+        return c.op === ">=" ? a >= b : c.op === "<=" ? a <= b : c.op === "<" ? a < b : c.op === ">" ? a > b : c.op === "==" ? a === b : true;
       });
     }
   }

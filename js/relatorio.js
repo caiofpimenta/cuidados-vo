@@ -196,7 +196,7 @@ export async function gerarPDF({ entries, meds, nomes, paciente, from, to }) {
       r.medicoes.map(e => {
         const d = new Date(e.ms);
         return [dmy(d), hm(d), e.sys != null ? e.sys + "/" + e.dia : "-", e.pulse != null ? e.pulse : "-",
-          e.glic != null ? e.glic : "-", e.glic != null ? (MOMENTOS[e.momento] || "") : "", e.note || "", quem(e.by)];
+          e.glic != null ? e.glic : "-", e.glic != null ? (MOMENTOS[e.momento] || "") : "", e.note || "", e.importado ? "Histórico importado" : quem(e.by)];
       }),
       { 0: { cellWidth: 56 }, 1: { cellWidth: 34 }, 2: { cellWidth: 62 }, 3: { cellWidth: 34 }, 4: { cellWidth: 64 }, 5: { cellWidth: 70 }, 7: { cellWidth: 60 } }
     );
@@ -274,7 +274,7 @@ export function gerarCSV({ entries, nomes, paciente, from, to }) {
   const linhas = entries.slice().sort((a, b) => a.ms - b.ms).map(e => {
     const d = new Date(e.ms);
     if (e.type === "medicao") {
-      return [dmy(d), hm(d), "Medicao", e.sys, e.dia, e.pulse, e.glic, e.glic != null ? MOMENTOS[e.momento] : "", "", "", "", "", "", "", e.note, q(e.by)];
+      return [dmy(d), hm(d), "Medicao", e.sys, e.dia, e.pulse, e.glic, e.glic != null ? MOMENTOS[e.momento] : "", "", "", "", "", "", "", e.note, e.importado ? "Historico importado" : q(e.by)];
     }
     return [dmy(d), hm(d), e.kind === "insulina" ? "Insulina" : "Remedio", "", "", "", "", "", e.medName, e.doseText, e.units, LOCAIS[e.site] || "",
       e.glicBefore, e.sched ? e.sched.replace("T", " ") : "", e.note, q(e.by)];

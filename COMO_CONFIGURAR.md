@@ -115,6 +115,18 @@ São notificações comuns do celular, sem alarme do app. O som e a vibração s
 - **iPhone:** precisa de iOS 16.4 ou mais novo, e o Safari. Toque em **Compartilhar** > **Adicionar à Tela de Início**. Abra o app **pelo ícone novo** (não pelo Safari), toque no seu nome > **Ativar avisos de remédio** e aceite. Sem instalar, o iPhone não recebe aviso.
 - Teste: cadastre um remédio com horário daqui a uns 10 minutos e aguarde. O aviso vem do robô do GitHub, então pode atrasar.
 
+## Importar o histórico de medições (só administrador)
+
+Para trazer medições antigas de uma planilha: **seu nome no topo** > Ajustes > Administração > **Importar histórico de medições**.
+
+- Copie as linhas da planilha (com o cabeçalho) e cole no campo, ou escolha um arquivo `.csv`/`.txt`.
+- Colunas aceitas, em qualquer ordem: **Data**, **Hora**, **Máxima** e **Mínima** (ou **PA** como `120/80`), **Pulso**, **Glicemia**, **Momento** (jejum, antes, depois, ao deitar) e **Observação**. Também vale uma coluna **Data e hora** e uma coluna **Período** (manhã, tarde, noite) no lugar da hora.
+- O app mostra uma prévia: quantas linhas estão prontas e quais têm problema, com o número da linha. Só importa depois que você tocar em **Importar**.
+- Importar de novo a mesma tabela não duplica: o registro com a mesma data e hora é atualizado.
+- Os registros importados aparecem como "histórico importado". O app mostra ao vivo só os últimos 60 dias; na aba Histórico, o botão **Carregar histórico mais antigo** busca mais 6 meses a cada toque. O relatório para o médico já inclui qualquer período.
+- **Nunca coloque a planilha na pasta do projeto fora de `dados/`**: o repositório é público. As pastas `dados/` e os arquivos `.csv`/`.xlsx` já estão no `.gitignore`.
+- Este recurso exige as regras do Firestore atualizadas (a função `validImport` do `firestore.rules`).
+
 ## 11. Pontos de atenção
 
 - **Atraso dos avisos:** o agendador do GitHub roda "a cada 5 minutos", mas costuma atrasar de 5 a 15 minutos, e às vezes mais. O aviso de remédio atrasado é reenviado 30 minutos depois, se ainda não houver registro.

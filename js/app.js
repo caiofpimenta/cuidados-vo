@@ -16,6 +16,7 @@ const S = {
   cfg: { patientName: "Maria José Pimenta", tz: "" },
   caregivers: {}, meds: [], entries: [], unsubs: [],
   tab: "hoje", hist: "med", range: 7, more: 60,
+  base0: 0, olderIni: 0, older: [], semMais: false, carregandoAntigos: false,
   confirm: null, confirmT: null,
   sig: "", lastMinute: "",
   err: null, authBusy: false, pushState: "default", msgOuvindo: false,
@@ -206,6 +207,8 @@ async function entrar(user) {
 
 function iniciarDados() {
   pararDados();
+  S.base0 = Date.now() - 60 * DIA;
+  S.olderIni = S.base0; S.older = []; S.semMais = false;
   const falha = e => { S.err = (e && e.code) || "erro"; render(); };
   const lerDoc = d => {
     const x = d.data({ serverTimestamps: "estimate" });
@@ -221,7 +224,7 @@ function iniciarDados() {
     render();
   }, falha));
   S.unsubs.push(onSnapshot(
-    query(collection(db, "entries"), where("ts", ">=", Timestamp.fromMillis(Date.now() - 60 * DIA)), orderBy("ts", "desc"), limit(2500)),
+    query(collection(db, "entries"), where("ts", ">=", Timestamp.fromMillis(S.base0)), orderBy("ts", "desc"), limit(2500)),
     s => { S.entries = s.docs.map(lerDoc); render(); }, falha));
   S.unsubs.push(onSnapshot(doc(db, "config", "app"), s => {
     if (s.exists()) S.cfg = Object.assign({}, S.cfg, s.data());
@@ -231,6 +234,31 @@ function iniciarDados() {
 
 /* ---------- dados derivados ---------- */
 const ultimo = filtro => S.entries.find(filtro);
+/** Registros recentes (ao vivo) mais os antigos carregados sob demanda. */
+const entradas = () => (S.older && S.older.length ? S.entries.concat(S.older) : S.entries);
+const autorDe = e => (e.importado ? "histórico importado" : nomeDe(e.by));
+
+async function carregarAntigos(ateMs) {
+  if (S.carregandoAntigos || (S.semMais && !ateMs)) return;
+  S.carregandoAntigos = true; render();
+  try {
+    const ini = ateMs ? Math.min(S.olderIni - 180 * DIA, ateMs - DIA) : S.olderIni - 180 * DIA;
+    const snap = await getDocs(query(collection(db, "entries"),
+      where("ts", ">=", Timestamp.fromMillis(ini)), where("ts", "<", Timestamp.fromMillis(S.olderIni)), orderBy("ts", "desc"), limit(4000)));
+    const novos = snap.docs.map(d => {
+      const x = d.data({ serverTimestamps: "estimate" });
+      return Object.assign({}, x, { id: d.id, ms: x.ts && x.ts.toMillis ? x.ts.toMillis() : 0 });
+    });
+    S.olderIni = ini;
+    if (!novos.length) S.semMais = true;
+    const ids = new Set(S.older.map(e => e.id));
+    S.older = S.older.concat(novos.filter(e => !ids.has(e.id))).sort((a, b) => b.ms - a.ms);
+    toast(novos.length ? novos.length + " registros mais antigos carregados" : "Não há registros mais antigos");
+  } catch (e) {
+    toast("Não foi possível carregar o histórico antigo. Tente de novo.");
+  }
+  S.carregandoAntigos = false; render();
+}
 function rel(ms) {
   const m = Math.round((Date.now() - ms) / MIN);
   if (m < 1) return "agora mesmo";
@@ -265,10 +293,10 @@ function cardUltima() {
   const pa = ultimo(e => e.type === "medicao" && e.sys != null);
   const gl = ultimo(e => e.type === "medicao" && e.glic != null);
   const c1 = pa
-    ? bloco("Pressão", pa.sys + "/" + pa.dia, "mmHg", '<span class="when">' + rel(pa.ms) + " · " + hm(new Date(pa.ms)) + "<br>" + (pa.pulse != null ? "pulso " + pa.pulse + " · " : "") + "por " + esc(nomeDe(pa.by)) + "</span>")
+    ? bloco("Pressão", pa.sys + "/" + pa.dia, "mmHg", '<span class="when">' + rel(pa.ms) + " · " + hm(new Date(pa.ms)) + "<br>" + (pa.pulse != null ? "pulso " + pa.pulse + " · " : "") + (pa.importado ? "" : "por ") + esc(autorDe(pa)) + "</span>")
     : bloco("Pressão", "-", "", '<span class="when">Ainda sem registro</span>');
   const c2 = gl
-    ? bloco("Glicemia", gl.glic, "mg/dL", '<span class="when">' + rel(gl.ms) + " · " + hm(new Date(gl.ms)) + "<br>" + esc(MOMENTOS[gl.momento] || "") + " · por " + esc(nomeDe(gl.by)) + "</span>")
+    ? bloco("Glicemia", gl.glic, "mg/dL", '<span class="when">' + rel(gl.ms) + " · " + hm(new Date(gl.ms)) + "<br>" + esc(MOMENTOS[gl.momento] || "") + " · " + (gl.importado ? "" : "por ") + esc(autorDe(gl)) + "</span>")
     : bloco("Glicemia", "-", "", '<span class="when">Ainda sem registro</span>');
   return '<div class="card reads">' + c1 + c2 + "</div>";
 }
@@ -355,7 +383,7 @@ function botaoCorrigir(e) {
   return S.isAdmin ? '<button class="btn sm" data-act="edit-entry" data-id="' + esc(e.id) + '">Corrigir</button>' : "";
 }
 function rodape(e) {
-  let by = '<span class="by">por ' + esc(nomeDe(e.by)) + (e.editedAt ? " · corrigido pelo administrador" : "") + "</span>";
+  let by = '<span class="by">' + (e.importado ? "" : "por ") + esc(autorDe(e)) + (e.editedAt ? " · corrigido pelo administrador" : "") + "</span>";
   if (e.note) by += '<span class="by">“' + esc(e.note) + "”</span>";
   return by;
 }
@@ -378,11 +406,13 @@ function linhaDose(e) {
 function viewHist() {
   let h = '<div class="seg" role="group" aria-label="Tipo de registro"><button type="button" data-act="hist" data-v="med" aria-pressed="' + (S.hist === "med") + '">Pressão e glicemia</button><button type="button" data-act="hist" data-v="dose" aria-pressed="' + (S.hist === "dose") + '">Remédios</button></div>';
   const tipo = S.hist === "med" ? "medicao" : "dose";
-  const lista = S.entries.filter(e => e.type === tipo);
+  const lista = entradas().filter(e => e.type === tipo);
   if (tipo === "medicao") {
-    const ate = Date.now(), desde = ate - S.range * DIA;
+    const ate = Date.now();
+    const desde = S.range === "all" ? Math.min(ate - 7 * DIA, ...lista.map(e => e.ms)) : ate - S.range * DIA;
     const dentro = lista.filter(e => e.ms >= desde);
-    h += '<div class="pills" role="group" aria-label="Período"><button class="pill" data-act="range" data-v="7" aria-pressed="' + (S.range === 7) + '">7 dias</button><button class="pill" data-act="range" data-v="30" aria-pressed="' + (S.range === 30) + '">30 dias</button></div>';
+    const pr = (v, t) => '<button class="pill" data-act="range" data-v="' + v + '" aria-pressed="' + (S.range === (v === "all" ? "all" : Number(v))) + '">' + t + "</button>";
+    h += '<div class="pills" role="group" aria-label="Período">' + pr(7, "7 dias") + pr(30, "30 dias") + pr(90, "90 dias") + pr("all", "Tudo que está carregado") + "</div>";
     h += '<div class="card stack" style="gap:10px"><div class="legend"><span><i style="background:var(--c1)"></i>Máxima</span><span><i style="background:var(--c2)"></i>Mínima</span><span>Pressão (mmHg)</span></div>' +
       chartSvg([{ color: "var(--c1)", pts: dentro.filter(e => e.sys != null).map(e => ({ t: e.ms, v: e.sys })) }, { color: "var(--c2)", pts: dentro.filter(e => e.sys != null).map(e => ({ t: e.ms, v: e.dia })) }], desde, ate) + "</div>";
     h += '<div class="card stack" style="gap:10px"><div class="legend"><span><i style="background:var(--c1)"></i>Glicemia (mg/dL)</span></div>' +
@@ -398,8 +428,9 @@ function viewHist() {
       const lab = k === hoje ? "Hoje" : k === ontem ? "Ontem" : shortDay(new Date(arr[0].ms));
       h += '<div><div class="day">' + esc(lab) + " · " + arr.length + (arr.length === 1 ? " registro" : " registros") + '</div><ul class="rows">' + arr.map(tipo === "medicao" ? linhaMedicao : linhaDose).join("") + "</ul></div>";
     });
-    if (lista.length > S.more) h += '<button class="btn" data-act="more">Mostrar mais antigos</button>';
+    if (lista.length > S.more) h += '<button class="btn" data-act="more">Mostrar mais registros</button>';
   }
+  if (!S.semMais) h += '<button class="btn" data-act="antigos"' + (S.carregandoAntigos ? " disabled" : "") + ">" + (S.carregandoAntigos ? "Carregando…" : "Carregar histórico mais antigo") + '</button><p class="hint">O app mostra os últimos 60 dias ao vivo. Cada toque busca mais 6 meses para trás.</p>';
   return h;
 }
 
@@ -773,8 +804,10 @@ async function montarAdmin() {
     '<label class="fld">Nome da paciente<input id="f-pac" type="text" maxlength="80" value="' + esc(S.cfg.patientName) + '"></label>' +
     '<label class="fld">Código da família<span class="u">quem for criar o acesso precisa dele</span><input id="f-code" type="text" autocapitalize="characters" value="' + esc(code) + '"></label>' +
     '<button class="btn" id="b-adm">Salvar</button>' +
+    '<div class="sect"><b>Histórico</b><p class="hint" style="margin:0">Traga medições antigas de uma planilha. Cada linha vira um registro com a data e a hora originais.</p><button class="btn" id="b-imp">Importar histórico de medições</button></div>' +
     '<div><b>Cuidadores</b>' + pessoas.map(p => '<div class="person"><span>' + esc(p.n) + (p.uid === S.uid ? ' <span class="muted small">(você)</span>' : "") + "</span>" +
       (p.uid === S.uid ? "" : '<button class="btn sm danger" data-rm="' + esc(p.uid) + '">Remover acesso</button>') + "</div>").join("") + "</div></div>";
+  $("#b-imp").onclick = () => sheetImportar();
   $("#b-adm").onclick = async () => {
     const pac = $("#f-pac").value.trim(), cd = $("#f-code").value.trim().toUpperCase();
     if (!pac) return setErr("Informe o nome da paciente.");
@@ -789,6 +822,78 @@ async function montarAdmin() {
     const b = ev.target.closest("[data-rm]"); if (!b) return;
     if (!b.dataset.ask) { b.dataset.ask = "1"; b.textContent = "Toque de novo para remover"; return; }
     try { await deleteDoc(doc(db, "caregivers", b.dataset.rm)); toast("Acesso removido"); montarAdmin(); } catch (e) { setErr("Não foi possível remover."); }
+  };
+}
+
+/* ---------- importar histórico (administrador) ---------- */
+async function lerArquivoTexto(arq) {
+  const buf = await arq.arrayBuffer();
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(buf); }
+  catch (e) { return new TextDecoder("windows-1252").decode(buf); }
+}
+
+function sheetImportar() {
+  openSheet("<h2>Importar histórico</h2>" +
+    '<p class="muted" style="margin:0">Cole as linhas da planilha, com a linha de cabeçalho, ou escolha um arquivo. Colunas aceitas: <b>Data</b>, <b>Hora</b>, <b>Máxima</b>, <b>Mínima</b>, <b>Pulso</b>, <b>Glicemia</b>, <b>Momento</b> e <b>Observação</b>. A pressão também pode vir numa coluna só, como 120/80.</p>' +
+    '<label class="fld">Tabela<textarea id="f-imp" rows="8" placeholder="Data&#9;Hora&#9;Máxima&#9;Mínima&#9;Pulso&#9;Glicemia"></textarea></label>' +
+    '<label class="fld">Ou escolha um arquivo (.csv ou .txt)<input id="f-arq" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain"></label>' +
+    '<label class="fld">Hora para linhas sem horário<span class="u">usada só quando a linha não tem hora nem período (manhã, tarde, noite)</span><input id="f-hp" type="time" value="08:00"></label>' +
+    '<div id="imp-prev" class="stack" style="gap:10px"></div><p class="err" id="f-err" role="alert"></p>' +
+    '<div class="btns"><button class="btn" data-close>Fechar</button><button class="btn primary" id="b-conf">Conferir</button></div>');
+  let ultimo = null;
+  $("#f-arq").onchange = async ev => {
+    const arq = ev.target.files && ev.target.files[0];
+    if (!arq) return;
+    try { $("#f-imp").value = await lerArquivoTexto(arq); setErr(""); } catch (e) { setErr("Não foi possível ler o arquivo."); }
+  };
+  $("#b-conf").onclick = async () => {
+    setErr(""); $("#imp-prev").innerHTML = "";
+    const M = await import("./importar.js");
+    const r = M.converter($("#f-imp").value, { horaPadrao: $("#f-hp").value || "08:00" });
+    ultimo = r;
+    const lista = r.erros.slice(0, 15).map(e => "<li>" + (e.n ? "Linha " + e.n + ": " : "") + esc(e.msg) + "</li>").join("");
+    let h = '<div class="notice info"><b>' + r.linhas.length + "</b> medições prontas para importar" +
+      (r.ignoradas ? " · " + r.ignoradas + " linhas vazias ignoradas" : "") +
+      (r.semHora ? " · " + r.semHora + " sem horário (vão usar " + esc($("#f-hp").value || "08:00") + ")" : "") + ".</div>";
+    if (r.erros.length) h += '<div class="notice bad"><b>' + r.erros.length + (r.erros.length === 1 ? " linha com problema" : " linhas com problema") + " (não serão importadas):</b><ul style=\"margin:6px 0 0;padding-left:18px\">" + lista + (r.erros.length > 15 ? "<li>… e mais " + (r.erros.length - 15) + "</li>" : "") + "</ul></div>";
+    if (r.linhas.length) {
+      const amostra = r.linhas.slice(0, 5).map(l => {
+        const d = new Date(l.ms);
+        return "<li><b>" + dmy(d) + " " + hm(d) + "</b> · " + (l.sys != null ? l.sys + "/" + l.dia : "") + (l.glic != null ? " · glicemia " + l.glic : "") + "</li>";
+      }).join("");
+      h += '<div class="notice"><b>Primeiras linhas, para você conferir:</b><ul style="margin:6px 0 0;padding-left:18px">' + amostra + "</ul></div>";
+      h += '<p class="hint">Se você importar de novo as mesmas linhas, elas não duplicam: o registro com a mesma data e hora é atualizado.</p>' +
+        '<button class="btn primary" id="b-go">Importar ' + r.linhas.length + " medições</button>";
+    }
+    $("#imp-prev").innerHTML = h;
+    const go = $("#b-go");
+    if (go) go.onclick = async () => {
+      go.disabled = true; $("#b-conf").disabled = true;
+      const linhas = ultimo.linhas;
+      try {
+        for (let i = 0; i < linhas.length; i += 400) {
+          const b = writeBatch(db);
+          linhas.slice(i, i + 400).forEach(l => {
+            const d = { type: "medicao", by: S.uid, ts: Timestamp.fromMillis(l.ms), importado: true, importedAt: serverTimestamp() };
+            ["sys", "dia", "pulse", "glic", "momento", "note"].forEach(k => { if (l[k] != null) d[k] = l[k]; });
+            b.set(doc(db, "entries", l.id), d);
+          });
+          await b.commit();
+          go.textContent = "Importando… " + Math.min(i + 400, linhas.length) + " de " + linhas.length;
+        }
+        closeSheet();
+        S.older = []; S.olderIni = S.base0; S.semMais = false;
+        S.tab = "hist"; S.hist = "med"; S.range = "all";
+        await carregarAntigos(Math.min(...linhas.map(l => l.ms)));
+        toast(linhas.length + " medições importadas");
+      } catch (e) {
+        go.disabled = false; $("#b-conf").disabled = false;
+        go.textContent = "Importar " + linhas.length + " medições";
+        setErr(e && e.code === "permission-denied"
+          ? "O Firestore recusou a importação. As regras novas ainda não foram publicadas no console do Firebase."
+          : "Não foi possível importar. Verifique a conexão e tente de novo.");
+      }
+    };
   };
 }
 
@@ -854,9 +959,10 @@ document.addEventListener("click", ev => {
   else if (act === "novo-med") sheetMed(null);
   else if (act === "ajustes") sheetAjustes();
   else if (act === "hist") { S.hist = a.dataset.v; S.more = 60; render(); }
-  else if (act === "range") { S.range = Number(a.dataset.v); render(); }
+  else if (act === "range") { S.range = a.dataset.v === "all" ? "all" : Number(a.dataset.v); render(); }
+  else if (act === "antigos") carregarAntigos();
   else if (act === "more") { S.more += 60; render(); }
-  else if (act === "edit-entry") { const e = S.entries.find(x => x.id === a.dataset.id); if (e) sheetEditarRegistro(e); }
+  else if (act === "edit-entry") { const e = entradas().find(x => x.id === a.dataset.id); if (e) sheetEditarRegistro(e); }
   else if (act === "edit-med") { const m = S.meds.find(x => x.id === a.dataset.id); if (m) sheetMed(m); }
   else if (act === "dose-livre") { const m = S.meds.find(x => x.id === a.dataset.id); if (m) sheetInsulina(m, null); }
   else if (act === "dose-ins") {

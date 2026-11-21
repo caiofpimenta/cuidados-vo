@@ -3,3 +3,8 @@ node_modules/
 *serviceAccount*.json
 *-firebase-adminsdk-*.json
 tools/_saida/
+# Dados de saúde: nunca vão para o GitHub (o repositório é público).
+dados/
+*.csv
+*.xlsx
+*.xls
