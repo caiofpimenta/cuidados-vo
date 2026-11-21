@@ -3,11 +3,11 @@ importScripts("firebase-config.js");
 importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js");
 
-const VERSAO = "v2";
+const VERSAO = "v3";
 const CACHE = "cuidados-" + VERSAO;
 const ARQUIVOS = [
   "./", "index.html", "style.css", "firebase-config.js", "manifest.webmanifest",
-  "js/app.js", "js/fb.js", "js/util.js", "js/relatorio.js", "js/importar.js",
+  "js/app.js", "js/fb.js", "js/util.js", "js/relatorio.js", "js/importar.js", "js/estoque.js",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"
 ];
 

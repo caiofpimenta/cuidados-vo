@@ -6,10 +6,12 @@ let seq = 1;
 const ts = ms => ({ __ts: true, ms, toMillis: () => ms, toDate: () => new Date(ms) });
 export const Timestamp = { fromMillis: ts, fromDate: d => ts(d.getTime()) };
 export const serverTimestamp = () => ({ __st: true });
-const resolve = v => {
+export const increment = n => ({ __inc: n });
+const resolve = (v, atual) => {
+  if (v && v.__inc != null) return (Number(atual) || 0) + v.__inc;
   if (v && v.__st) return ts(Date.now());
   if (Array.isArray(v)) return v.map(resolve);
-  if (v && typeof v === "object" && !v.__ts) { const o = {}; for (const k in v) o[k] = resolve(v[k]); return o; }
+  if (v && typeof v === "object" && !v.__ts) { const o = {}; for (const k in v) o[k] = resolve(v[k], atual && atual[k]); return o; }
   return v;
 };
 const valor = v => (v && v.__ts ? v.ms : v);
@@ -25,7 +27,10 @@ export const onMessage = () => {};
 
 const caminho = partes => partes.join("/");
 export const collection = (_d, ...p) => ({ kind: "col", path: caminho(p) });
-export const doc = (_d, ...p) => ({ kind: "doc", path: caminho(p), id: p[p.length - 1] });
+export const doc = (d, ...p) => {
+  if (d && d.kind === "col" && !p.length) { const id = "n" + seq++; return { kind: "doc", path: d.path + "/" + id, id }; }
+  return { kind: "doc", path: caminho(p), id: p[p.length - 1] };
+};
 export const where = (campo, op, v) => ({ t: "where", campo, op, v });
 export const orderBy = (campo, dir) => ({ t: "order", campo, dir: dir || "asc" });
 export const limit = n => ({ t: "limit", n });
@@ -94,11 +99,19 @@ export async function addDoc(col, data) {
   store.set(col.path + "/" + id, resolve(data)); avisar();
   return { id, path: col.path + "/" + id };
 }
-export async function updateDoc(ref, data) { store.set(ref.path, Object.assign({}, store.get(ref.path), resolve(data))); avisar(); }
+export async function updateDoc(ref, data) { const at = store.get(ref.path) || {}; store.set(ref.path, Object.assign({}, at, resolve(data, at))); avisar(); }
 export async function deleteDoc(ref) { store.delete(ref.path); avisar(); }
 export function writeBatch() {
   const ops = [];
-  return { set: (r, d) => ops.push([r, d]), commit: async () => { ops.forEach(([r, d]) => store.set(r.path, resolve(d))); avisar(); } };
+  return {
+    set: (r, d) => { ops.push(["set", r, d]); },
+    update: (r, d) => { ops.push(["upd", r, d]); },
+    commit: async () => {
+      for (const [k, r] of ops) if (k === "set" && store.has(r.path) && /^entries\/dose_/.test(r.path) && !globalThis.__admin) throw Object.assign(new Error("negado"), { code: "permission-denied" });
+      ops.forEach(([k, r, d]) => { const at = store.get(r.path) || {}; store.set(r.path, k === "set" ? resolve(d, at) : Object.assign({}, at, resolve(d, at))); });
+      avisar();
+    }
+  };
 }
 
 const usuarioFalso = { uid: "u1" };
@@ -123,6 +136,12 @@ store.set("meds/m1", { name: "Losartana", kind: "comprimido", dose: "50 mg, 1 co
 store.set("meds/m2", { name: "Insulina NPH", kind: "insulina", insulinType: "NPH", units: 10, mode: "fixo", times: ["00:02", "14:00"], start: "2026-11-01", end: null, active: true, by: "u2" });
 store.set("meds/m3", { name: "Insulina Regular", kind: "insulina", insulinType: "Regular", units: null, mode: "glicemia", times: [], start: "2026-11-01", end: null, active: true, by: "u1", note: "antes do almoço, se glicemia alta" });
 store.set("meds/m4", { name: "Amoxicilina", kind: "comprimido", dose: "500 mg", mode: "fixo", times: ["08:00", "16:00"], start: "2026-11-15", end: hojeStr, active: true, by: "u3" });
+store.set("meds/m1", Object.assign(store.get("meds/m1"), { stockOn: true, stockQty: 11, stockUnit: "comprimidos", perDose: 1, pack: 30, alertDays: 7, stockAt: ts(agora - 2 * 86400000), stockBy: "u2" }));
+store.set("meds/m2", Object.assign(store.get("meds/m2"), { stockOn: true, stockQty: 640, stockUnit: "UI", pack: 300, alertDays: 10, stockAt: ts(agora - 5 * 86400000), stockBy: "u1" }));
+store.set("supplies/s1", { name: "Fraldas G", unit: "fraldas", stockQty: 14, pack: 36, alertDays: 7, minQty: 0, perDay: 0, active: true, by: "u2", stockAt: ts(agora - 86400000), stockBy: "u3" });
+store.set("supplies/s2", { name: "Fraldas noturnas", unit: "fraldas", stockQty: 40, pack: 24, alertDays: 7, minQty: 10, perDay: 1, active: true, by: "u2", stockAt: ts(agora - 3 * 86400000), stockBy: "u2" });
+for (let i = 1; i <= 8; i++) store.set("stockLog/l" + i, { item: "sup:s1", type: "saida", qty: 6, delta: -6, by: ["u2", "u3"][i % 2], ts: ts(agora - i * 86400000 - 3600000) });
+store.set("stockLog/l20", { item: "sup:s1", type: "entrada", qty: 36, delta: 36, by: "u2", ts: ts(agora - 9 * 86400000) });
 for (let i = 0; i < 12; i++) {
   store.set("entries/med" + i, { type: "medicao", sys: 120 + (i * 7) % 25, dia: 76 + (i * 3) % 12, pulse: 70 + i % 8, glic: 98 + (i * 11) % 60, momento: ["jejum", "apos", "deitar"][i % 3], by: ["u2", "u3", "u1"][i % 3], ts: ts(h(Math.floor(i / 2), i % 2 ? 20 : 8, 10 + i)) });
 }

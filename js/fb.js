@@ -5,7 +5,7 @@ import {
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot,
-  query, where, orderBy, limit, serverTimestamp, Timestamp, writeBatch
+  query, where, orderBy, limit, serverTimestamp, Timestamp, writeBatch, increment
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { getMessaging, getToken, deleteToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
 
@@ -35,6 +35,6 @@ export async function obterMessaging() {
 export {
   onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, deleteUser,
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot,
-  query, where, orderBy, limit, serverTimestamp, Timestamp, writeBatch,
+  query, where, orderBy, limit, serverTimestamp, Timestamp, writeBatch, increment,
   getToken, deleteToken, onMessage
 };

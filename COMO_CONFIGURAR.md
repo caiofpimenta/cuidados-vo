@@ -127,6 +127,17 @@ Para trazer medições antigas de uma planilha: **seu nome no topo** > Ajustes >
 - **Nunca coloque a planilha na pasta do projeto fora de `dados/`**: o repositório é público. As pastas `dados/` e os arquivos `.csv`/`.xlsx` já estão no `.gitignore`.
 - Este recurso exige as regras do Firestore atualizadas (a função `validImport` do `firestore.rules`).
 
+## Estoque de remédios e fraldas
+
+Aba **Estoque**. Mostra quanto ainda tem em casa, para quantos dias dá e quando é hora de comprar.
+
+- **Remédios:** em "Sem controle de estoque", toque em **Controlar** e informe quanto tem em casa. A partir daí, **cada dose registrada desconta sozinha** (1 comprimido por dose, ou o valor que você informar, como 0,5; na insulina, as unidades aplicadas). Se duas pessoas registrarem a mesma dose ao mesmo tempo, só uma desconta.
+- **Fraldas e outros itens** (tiras de glicemia, agulhas…): **Adicionar fraldas** ou **Outro item**. Use **Usei 1** a cada troca, **Chegou mais** quando comprar (pode informar em pacotes) e **Contei** para corrigir a quantidade depois de conferir a prateleira.
+- **Quando comprar:** o app divide o que tem pelo uso diário. Para remédio, o uso vem dos horários cadastrados (na insulina "conforme a glicemia", da média dos últimos 14 dias). Para fraldas, vem do que foi anotado nos últimos 14 dias, ou do "uso por dia" que você informar. O aviso **Hora de comprar** aparece na tela Hoje e um número na aba Estoque quando faltarem poucos dias (padrão: 7; dá para mudar em **Configurar**). Remédio com data final que já está coberto pelo estoque não gera aviso.
+- **Contagem:** como o desconto é calculado, vale **Contei** de vez em quando. Se a conta ficar negativa, o app avisa que faltou registrar uma compra.
+- Qualquer cuidador mexe no estoque. Só o administrador apaga itens e corrige ou apaga as movimentações. Se o administrador corrigir ou apagar uma dose já registrada, o estoque não é ajustado: use **Contei**.
+- Este recurso exige as regras do Firestore atualizadas (`meds`, `supplies` e `stockLog` no `firestore.rules`). Não há aviso por notificação de celular: o aviso de compra aparece dentro do app.
+
 ## 11. Pontos de atenção
 
 - **Atraso dos avisos:** o agendador do GitHub roda "a cada 5 minutos", mas costuma atrasar de 5 a 15 minutos, e às vezes mais. O aviso de remédio atrasado é reenviado 30 minutos depois, se ainda não houver registro.
@@ -144,6 +155,7 @@ node tools/servir.mjs
 Abra <http://localhost:5173/__mock> para ver o app com dados de exemplo em memória. A lógica dos horários do robô tem testes:
 
 ```powershell
+node tools/teste-estoque.mjs
 cd lembretes
 node teste.mjs
 ```

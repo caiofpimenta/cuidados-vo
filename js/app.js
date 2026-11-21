@@ -2,19 +2,20 @@ import {
   configurado, auth, db, vapidKey, obterMessaging,
   onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, deleteUser,
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot,
-  query, where, orderBy, limit, serverTimestamp, Timestamp, writeBatch, getToken, deleteToken, onMessage
+  query, where, orderBy, limit, serverTimestamp, Timestamp, writeBatch, increment, getToken, deleteToken, onMessage
 } from "./fb.js";
 import {
   $, esc, p2, dayStr, hm, dm, dmy, dmHm, longDay, shortDay, MIN, DIA,
   MOMENTOS, LOCAIS, RODIZIO, INSULINAS, TIPOS, normUser, emailDe, fmtNum,
   slotsDoDia, mapaDoses, ehIOS, emModoApp
 } from "./util.js";
+import * as EST from "./estoque.js";
 
 const S = {
   view: "auth", authMode: "entrar", authMsg: "",
   uid: null, name: "", isAdmin: false,
   cfg: { patientName: "Maria José Pimenta", tz: "" },
-  caregivers: {}, meds: [], entries: [], unsubs: [],
+  caregivers: {}, meds: [], entries: [], supplies: [], log: [], unsubs: [], busyEst: false,
   tab: "hoje", hist: "med", range: 7, more: 60,
   base0: 0, olderIni: 0, older: [], semMais: false, carregandoAntigos: false,
   confirm: null, confirmT: null,
@@ -176,7 +177,7 @@ async function enviarAuth() {
 function pararDados() {
   S.unsubs.forEach(u => { try { u(); } catch (e) { /* segue */ } });
   S.unsubs = [];
-  S.caregivers = {}; S.meds = []; S.entries = []; S.err = null;
+  S.caregivers = {}; S.meds = []; S.entries = []; S.supplies = []; S.log = []; S.err = null;
 }
 
 async function entrar(user) {
@@ -220,9 +221,16 @@ function iniciarDados() {
     render();
   }, falha));
   S.unsubs.push(onSnapshot(collection(db, "meds"), s => {
-    S.meds = s.docs.map(d => Object.assign({}, d.data(), { id: d.id }));
+    S.meds = s.docs.map(d => Object.assign({}, d.data({ serverTimestamps: "estimate" }), { id: d.id }));
     render();
   }, falha));
+  S.unsubs.push(onSnapshot(collection(db, "supplies"), s => {
+    S.supplies = s.docs.map(d => Object.assign({}, d.data({ serverTimestamps: "estimate" }), { id: d.id }));
+    render();
+  }, falha));
+  S.unsubs.push(onSnapshot(
+    query(collection(db, "stockLog"), where("ts", ">=", Timestamp.fromMillis(Date.now() - 21 * DIA)), orderBy("ts", "desc"), limit(400)),
+    s => { S.log = s.docs.map(lerDoc); render(); }, falha));
   S.unsubs.push(onSnapshot(
     query(collection(db, "entries"), where("ts", ">=", Timestamp.fromMillis(S.base0)), orderBy("ts", "desc"), limit(2500)),
     s => { S.entries = s.docs.map(lerDoc); render(); }, falha));
@@ -341,6 +349,7 @@ function viewHoje() {
     h += '<section class="alert" aria-label="Remédios na hora"><h2>Hora do remédio</h2>' + pend.map(s =>
       '<div class="it"><div class="nm"><b>' + esc(s.med.name) + "</b><span>" + esc(textoDoseMed(s.med)) + " · marcado para " + esc(s.time) + (s.st === "atrasado" ? " · <b>atrasado</b>" : "") + "</span></div>" + botaoDose(s, true) + "</div>").join("") + "</section>";
   }
+  h += avisoCompras();
   h += '<div class="actions"><button class="btn primary" data-act="nova-medicao">Nova medição<small>pressão e glicemia, com data e hora automáticas</small></button></div>';
   h += '<div class="sec-title"><h2>Última medição</h2></div>' + cardUltima();
   h += '<div class="sec-title"><h2>Remédios de hoje</h2><span class="small muted">' + slots.filter(s => s.st === "dado").length + " de " + slots.length + " dados</span></div>";
@@ -466,6 +475,247 @@ function viewMeds() {
   return h;
 }
 
+/* ---------- estoque ---------- */
+const ctxEst = () => ({ now: Date.now(), hoje: dayStr(new Date()), entries: entradas(), log: S.log });
+const itensEst = () => EST.listarItens(S.meds, S.supplies);
+const compras = () => EST.precisaComprar(itensEst(), ctxEst());
+const qtdTxt = (it, q) => fmtNum(q, 1) + " " + it.unidade;
+const nomeItem = chave => {
+  const it = itensEst().find(i => i.key === chave);
+  if (it) return it.nome;
+  const [tp, id] = chave.split(":");
+  const x = tp === "med" ? S.meds.find(m => m.id === id) : S.supplies.find(s => s.id === id);
+  return x ? x.name : "Item removido";
+};
+const CLASSE_NIVEL = { zerado: "bad", urgente: "bad", atencao: "warn", ok: "ok", parado: "mute" };
+
+function cardEstoque(it) {
+  const s = EST.situacao(it, ctxEst());
+  const sup = it.tipo === "sup";
+  const l = [];
+  if (s.negativo) l.push('<b style="color:var(--bad)">A conta ficou negativa.</b> Provavelmente faltou registrar uma compra. Faça uma contagem.');
+  if (s.nivel === "parado") l.push(s.parado === "suspenso" ? "Remédio suspenso: não está descontando." : "Tratamento encerrado.");
+  else if (s.dias != null && s.qty > 0) {
+    l.push((s.estimado ? "Pelo uso dos últimos dias, " : "") + "dá para <b>" + EST.fraseDias(s.dias) + "</b> · acaba por volta de " + dm(new Date(s.acabaEm)) + (s.cobreAteFim ? " · <b>suficiente até o fim do tratamento</b>" : ""));
+  } else if (s.dias == null && s.nivel !== "zerado") {
+    l.push(sup ? "Anote os usos (botão “Usei”) ou informe o uso por dia em Configurar, para o app calcular quanto tempo dura." : "Ainda não há como calcular quantos dias duram.");
+  }
+  if (s.perDay > 0 && s.nivel !== "parado") l.push("Uso: cerca de " + fmtNum(s.perDay, 1) + " " + it.unidade + " por dia" + (s.provisorio ? " (poucos dias de dados)" : ""));
+  if (it.quando) l.push("Atualizado em " + dmHm(new Date(it.quando)) + (it.por ? " por " + esc(nomeDe(it.por)) : ""));
+  const bot = '<button class="btn primary sm" data-act="est-entrada" data-key="' + esc(it.key) + '">Chegou mais</button>' +
+    (sup ? '<button class="btn sm" data-act="est-uso1" data-key="' + esc(it.key) + '">Usei 1</button><button class="btn sm" data-act="est-uso" data-key="' + esc(it.key) + '">Usei…</button>' : "") +
+    '<button class="btn sm" data-act="est-contagem" data-key="' + esc(it.key) + '">Contei</button>' +
+    '<button class="btn sm" data-act="est-cfg" data-key="' + esc(it.key) + '">Configurar</button>';
+  return '<article class="card stk"><div class="hd"><b>' + esc(it.nome) + '</b><span class="chip ' + CLASSE_NIVEL[s.nivel] + '">' + esc(EST.ROTULO_NIVEL[s.nivel]) + "</span></div>" +
+    '<div class="qty">' + fmtNum(s.qty, 1) + "<small>" + esc(it.unidade) + "</small></div>" +
+    l.map(x => '<div class="small muted">' + x + "</div>").join("") + '<div class="btns wrap">' + bot + "</div></article>";
+}
+
+function textoMov(l) {
+  const un = (() => { const [tp, id] = l.item.split(":"); const x = tp === "med" ? S.meds.find(m => m.id === id) : S.supplies.find(s => s.id === id); return x ? (x.stockUnit || x.unit || "") : ""; })();
+  const q = fmtNum(l.qty, 1);
+  const base = l.type === "entrada" ? "+" + q + " " + un + " · chegou" : l.type === "saida" ? "−" + q + " " + un + " · usou" : "contagem: " + q + " " + un + (l.delta ? " (ajuste " + (l.delta > 0 ? "+" : "−") + fmtNum(Math.abs(l.delta), 1) + ")" : "");
+  return base + (l.note ? " · “" + l.note + "”" : "");
+}
+
+function viewEstoque() {
+  const hoje = dayStr(new Date());
+  const itens = itensEst();
+  const meds = itens.filter(i => i.tipo === "med").sort((a, b) => a.nome.localeCompare(b.nome));
+  const sups = itens.filter(i => i.tipo === "sup").sort((a, b) => a.nome.localeCompare(b.nome));
+  const semControle = S.meds.filter(m => !m.stockOn && m.active !== false && (!m.end || m.end >= hoje)).sort((a, b) => a.name.localeCompare(b.name));
+  let h = '<div class="card"><h2>Estoque</h2><p class="muted small" style="margin:6px 0 0">Quanto ainda tem em casa e quando é hora de comprar. Os remédios descontam sozinhos a cada dose registrada; fraldas e outros itens você anota quando usa e quando chega mais.</p></div>';
+  h += '<div class="sec-title"><h2>Remédios</h2><span class="small muted">' + meds.length + "</span></div>";
+  h += meds.length ? meds.map(cardEstoque).join("") : '<div class="card empty"><b>Nenhum remédio com estoque controlado</b>Toque em “Controlar” em um remédio abaixo e informe quanto tem em casa.</div>';
+  if (semControle.length) {
+    h += '<div class="card stack" style="gap:6px"><b>Sem controle de estoque</b>' + semControle.map(m =>
+      '<div class="person"><span>' + esc(m.name) + ' <span class="muted small">' + esc(ehInsulina(m) ? textoDoseMed(m) : (m.dose || "")) + '</span></span><button class="btn sm" data-act="est-controlar" data-id="' + esc(m.id) + '">Controlar</button></div>').join("") + "</div>";
+  }
+  h += '<div class="sec-title"><h2>Fraldas e outros itens</h2><span class="small muted">' + sups.length + "</span></div>";
+  h += sups.length ? sups.map(cardEstoque).join("") : '<div class="card empty"><b>Nenhum item cadastrado</b>Cadastre as fraldas para acompanhar quantas ainda tem e quando comprar.</div>';
+  h += '<div class="btns wrap"><button class="btn primary" data-act="est-novo" data-preset="fralda">Adicionar fraldas</button><button class="btn" data-act="est-novo">Outro item</button></div>';
+  h += '<p class="hint">Exemplos de outros itens: tiras de glicemia, agulhas, lencinhos, luvas.</p>';
+  const mov = S.log.slice(0, 15);
+  if (mov.length) {
+    h += '<div class="sec-title"><h2>Últimas movimentações</h2></div><ul class="rows">' + mov.map(l =>
+      '<li class="row"><span class="tm">' + dm(new Date(l.ms)) + '</span><div class="mn"><b style="font-size:1rem">' + esc(nomeItem(l.item)) + '</b><span class="by">' + esc(textoMov(l)) + " · " + hm(new Date(l.ms)) + " · " + esc(nomeDe(l.by)) + '</span></div><span></span></li>').join("") + "</ul>";
+  }
+  return h;
+}
+
+/** Aviso na tela Hoje: o que precisa ser comprado. */
+function avisoCompras() {
+  const lista = compras();
+  if (!lista.length) return "";
+  return '<section class="buy" aria-label="Hora de comprar"><h2>Hora de comprar</h2>' + lista.map(({ it, s }) =>
+    '<div class="it"><div class="nm"><b>' + esc(it.nome) + "</b><span>" +
+    (s.nivel === "zerado" ? "Acabou" : "Restam " + qtdTxt(it, s.qty) + (s.dias != null ? " · dá para " + EST.fraseDias(s.dias) : " · abaixo do mínimo")) +
+    '</span></div><button class="btn sm primary" data-act="est-entrada" data-key="' + esc(it.key) + '">Chegou mais</button></div>').join("") +
+    '<button class="linkbtn" type="button" data-act="est-ver">Abrir o estoque</button></section>';
+}
+
+/** Grava uma movimentação e ajusta a quantidade do item, tudo junto. */
+function moverEstoque(it, tipo, qty, nota) {
+  const delta = tipo === "entrada" ? qty : tipo === "saida" ? -qty : qty - it.qty;
+  const ref = it.tipo === "med" ? doc(db, "meds", it.id) : doc(db, "supplies", it.id);
+  const b = writeBatch(db);
+  b.update(ref, { stockQty: tipo === "contagem" ? qty : increment(delta), stockAt: serverTimestamp(), stockBy: S.uid });
+  const log = { item: it.key, type: tipo, qty, delta, by: S.uid, ts: serverTimestamp() };
+  if (nota) log.note = nota;
+  b.set(doc(collection(db, "stockLog")), log);
+  return b.commit();
+}
+const itemPorChave = k => itensEst().find(i => i.key === k);
+
+function sheetEntrada(it) {
+  const pacote = it.tipo === "med" ? "Caixas" : "Pacotes";
+  const campos = it.pack > 0
+    ? '<div class="fields"><label class="fld">' + pacote + '<span class="u">com ' + fmtNum(it.pack) + " cada</span><input class=\"big\" id=\"f-cx\" type=\"number\" inputmode=\"numeric\" min=\"0\" step=\"1\" autofocus></label>" +
+      '<label class="fld">Avulsas<span class="u">' + esc(it.unidade) + '</span><input class="big" id="f-av" type="number" inputmode="decimal" min="0"></label></div>'
+    : '<label class="fld">Quantidade que chegou<span class="u">' + esc(it.unidade) + '</span><input class="big" id="f-av" type="number" inputmode="decimal" min="0" autofocus></label>';
+  openSheet("<h2>Chegou mais</h2>" +
+    '<p class="muted" style="margin:0">' + esc(it.nome) + " · agora tem " + esc(qtdTxt(it, Math.max(0, it.qty))) + "</p>" + campos +
+    (it.raw.kind === "insulina" ? '<p class="hint">Em unidades (UI): um refil de caneta tem 300 UI e um frasco de 10 mL tem 1000 UI.</p>' : "") +
+    '<div class="stamp" id="tot"></div>' +
+    '<label class="fld">Observação (opcional)<input id="f-note" type="text" maxlength="100" placeholder="Ex.: comprado na farmácia"></label>' +
+    '<p class="err" id="f-err" role="alert"></p>' +
+    '<div class="btns"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="save">Registrar</button></div>');
+  const total = () => {
+    const cx = $("#f-cx") ? numVal("f-cx") : 0, av = numVal("f-av");
+    return (isNaN(cx) ? 0 : cx) * (it.pack || 0) + (isNaN(av) ? 0 : av);
+  };
+  const mostrar = () => { const el = $("#tot"); if (!el) return; const t = total(); el.textContent = t > 0 ? "Vai entrar " + qtdTxt(it, t) + ". Ficará com " + qtdTxt(it, Math.max(0, it.qty) + t) + "." : "Informe quanto chegou."; };
+  $("#panel").oninput = mostrar; mostrar();
+  $("#save").onclick = () => {
+    const t = total();
+    if (!(t > 0)) return setErr("Informe quanto chegou.");
+    if (t > 100000) return setErr("Confira a quantidade.");
+    guardado(() => moverEstoque(it, "entrada", Math.round(t * 100) / 100, $("#f-note").value.trim()), "Entrada registrada");
+  };
+}
+
+function sheetContagem(it) {
+  openSheet("<h2>Contei o que tem</h2>" +
+    '<p class="muted" style="margin:0">' + esc(it.nome) + ". O app calcula que tem " + esc(qtdTxt(it, Math.max(0, it.qty))) + ". Conte o que está de fato em casa e informe aqui para corrigir.</p>" +
+    '<label class="fld">Quanto tem agora<span class="u">' + esc(it.unidade) + '</span><input class="big" id="f-av" type="number" inputmode="decimal" min="0" value="' + esc(Math.max(0, Math.round(it.qty * 100) / 100)) + '" autofocus></label>' +
+    '<label class="fld">Observação (opcional)<input id="f-note" type="text" maxlength="100"></label>' +
+    '<p class="err" id="f-err" role="alert"></p>' +
+    '<div class="btns"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="save">Salvar contagem</button></div>');
+  $("#save").onclick = () => {
+    const v = numVal("f-av");
+    if (isNaN(v) || v < 0) return setErr("Informe quanto tem agora (pode ser zero).");
+    if (v > 100000) return setErr("Confira a quantidade.");
+    guardado(() => moverEstoque(it, "contagem", Math.round(v * 100) / 100, $("#f-note").value.trim()), "Contagem salva");
+  };
+}
+
+function sheetUso(it) {
+  openSheet("<h2>Usei</h2>" +
+    '<p class="muted" style="margin:0">' + esc(it.nome) + " · agora tem " + esc(qtdTxt(it, Math.max(0, it.qty))) + "</p>" +
+    '<label class="fld">Quantas usou<span class="u">' + esc(it.unidade) + '</span><input class="big" id="f-av" type="number" inputmode="decimal" min="0" value="1" autofocus></label>' +
+    '<label class="fld">Observação (opcional)<input id="f-note" type="text" maxlength="100"></label>' +
+    '<p class="err" id="f-err" role="alert"></p>' +
+    '<div class="btns"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="save">Registrar</button></div>');
+  $("#save").onclick = () => {
+    const v = numVal("f-av");
+    if (!(v > 0)) return setErr("Informe quantas usou.");
+    if (v > 1000) return setErr("Confira a quantidade.");
+    guardado(() => moverEstoque(it, "saida", Math.round(v * 100) / 100, $("#f-note").value.trim()), "Uso registrado");
+  };
+}
+
+function usoRapido(it) {
+  if (S.busyEst) return;
+  S.busyEst = true; setTimeout(() => { S.busyEst = false; }, 700);
+  moverEstoque(it, "saida", 1, "").then(() => toast("Usou 1 · restam " + qtdTxt(it, Math.max(0, it.qty - 1)))).catch(() => toast("Não foi possível registrar. Tente de novo."));
+}
+
+function camposAlerta(it) {
+  const o = it || {};
+  return '<div class="fields"><label class="fld">Avisar quando faltarem<span class="u">dias de estoque</span><input id="f-ad" type="number" inputmode="numeric" min="1" max="90" value="' + esc(o.alertDays != null ? o.alertDays : 7) + '"></label></div>';
+}
+
+function sheetItem(x, preset) {
+  const edit = !!x;
+  const fr = !edit && preset === "fralda";
+  openSheet("<h2>" + (edit ? "Configurar item" : fr ? "Adicionar fraldas" : "Adicionar item") + "</h2>" +
+    '<label class="fld">Nome<span class="u">Ex.: Fraldas G, Fraldas noturnas, Tiras de glicemia</span><input id="f-name" type="text" maxlength="60" value="' + esc(edit ? x.name : fr ? "Fraldas" : "") + '" autofocus></label>' +
+    '<label class="fld">Unidade<span class="u">como contar: fraldas, tiras, caixas</span><input id="f-un" type="text" maxlength="20" value="' + esc(edit ? x.unit : fr ? "fraldas" : "unidades") + '"></label>' +
+    (edit ? "" : '<label class="fld">Quanto tem agora<span class="u">conte o que está em casa</span><input class="big" id="f-q" type="number" inputmode="decimal" min="0" value="0"></label>') +
+    '<div class="fields"><label class="fld">Pacote com<span class="u">opcional, unidades</span><input id="f-pk" type="number" inputmode="numeric" min="0" value="' + esc(edit ? x.pack || "" : "") + '"></label>' +
+    '<label class="fld">Uso por dia<span class="u">opcional, estimativa</span><input id="f-pd" type="number" inputmode="decimal" min="0" step="0.5" value="' + esc(edit ? x.perDay || "" : "") + '"></label></div>' +
+    camposAlerta(x) +
+    '<label class="fld">Avisar também se restar menos de<span class="u">opcional, em ' + "unidades" + '</span><input id="f-mn" type="number" inputmode="numeric" min="0" value="' + esc(edit ? x.minQty || "" : "") + '"></label>' +
+    '<p class="hint">Com o uso por dia (ou anotando cada uso no botão “Usei”), o app calcula para quantos dias dura e avisa na hora de comprar.</p>' +
+    '<p class="err" id="f-err" role="alert"></p>' +
+    '<div class="btns"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="save">Salvar</button></div>' +
+    (edit ? '<button class="btn" id="stop">Parar de controlar este item</button>' : "") +
+    (edit && S.isAdmin ? '<button class="btn danger" id="del">Apagar item</button>' : ""));
+  const lerCampos = () => {
+    const nome = $("#f-name").value.trim(), un = $("#f-un").value.trim() || "unidades";
+    const pk = numVal("f-pk"), pd = numVal("f-pd"), ad = numVal("f-ad"), mn = numVal("f-mn");
+    if (!nome) { setErr("Informe o nome."); return null; }
+    if (!(ad >= 1 && ad <= 90)) { setErr("Informe de 1 a 90 dias para o aviso."); return null; }
+    return { name: nome, unit: un, pack: isNaN(pk) ? 0 : Math.round(pk), perDay: isNaN(pd) ? 0 : pd, alertDays: Math.round(ad), minQty: isNaN(mn) ? 0 : Math.round(mn) };
+  };
+  $("#save").onclick = () => {
+    const d = lerCampos(); if (!d) return;
+    if (edit) return guardado(() => updateDoc(doc(db, "supplies", x.id), d), "Item salvo");
+    const q = numVal("f-q");
+    if (isNaN(q) || q < 0 || q > 100000) return setErr("Informe quanto tem agora (pode ser zero).");
+    Object.assign(d, { stockQty: q, stockAt: serverTimestamp(), stockBy: S.uid, active: true, by: S.uid, createdAt: serverTimestamp() });
+    guardado(() => addDoc(collection(db, "supplies"), d), "Item adicionado");
+  };
+  if (edit) {
+    $("#stop").onclick = () => guardado(() => updateDoc(doc(db, "supplies", x.id), { active: false }), "Item removido do estoque");
+    if ($("#del")) $("#del").onclick = function () {
+      if (!this.dataset.ask) { this.dataset.ask = "1"; this.textContent = "Toque de novo para apagar de vez"; return; }
+      guardado(() => deleteDoc(doc(db, "supplies", x.id)), "Item apagado");
+    };
+  }
+}
+
+function unidadePadrao(m) { return m.kind === "insulina" ? "UI" : m.kind === "liquido" ? "ml" : m.kind === "comprimido" ? "comprimidos" : "unidades"; }
+function porDosePadrao(m) {
+  const r = /(\d+(?:[.,]\d+)?)\s*(?:comprimidos?|cp|c[aá]psulas?|gotas?|ml)/i.exec(m.dose || "");
+  return r ? Number(r[1].replace(",", ".")) : 1;
+}
+function sheetControleMed(m) {
+  const on = !!m.stockOn, ins = ehInsulina(m);
+  openSheet("<h2>" + (on ? "Configurar estoque" : "Controlar estoque") + "</h2>" +
+    '<p class="muted" style="margin:0">' + esc(m.name) + (ins ? " · a cada aplicação o app desconta as unidades aplicadas." : " · a cada dose registrada o app desconta do estoque.") + "</p>" +
+    (on ? "" : '<label class="fld">Quanto tem em casa agora<span class="u" id="u-q"></span><input class="big" id="f-q" type="number" inputmode="decimal" min="0" autofocus></label>') +
+    '<label class="fld">Contado em<span class="u">comprimidos, ml, UI…</span><input id="f-un" type="text" maxlength="20" value="' + esc(m.stockUnit || unidadePadrao(m)) + '"></label>' +
+    (ins ? "" : '<label class="fld">Quanto sai a cada dose<span class="u">use 0,5 para meio comprimido</span><input id="f-pd" type="number" inputmode="decimal" min="0.1" step="0.5" value="' + esc(m.perDose || porDosePadrao(m)) + '"></label>') +
+    '<label class="fld">Caixa ou frasco com<span class="u">opcional: facilita registrar compras</span><input id="f-pk" type="number" inputmode="numeric" min="0" value="' + esc(m.pack || "") + '"></label>' +
+    camposAlerta(m) +
+    '<p class="hint">Comprar com antecedência: o aviso aparece quando faltar esse número de dias.</p>' +
+    '<p class="err" id="f-err" role="alert"></p>' +
+    '<div class="btns"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="save">Salvar</button></div>' +
+    (on ? '<button class="btn" id="stop">Parar de controlar este remédio</button>' : ""));
+  if ($("#u-q")) $("#u-q").textContent = ins ? "em UI: um refil de caneta tem 300 UI e um frasco de 10 mL tem 1000 UI" : "conte os comprimidos, gotas ou ml que estão em casa";
+  $("#save").onclick = () => {
+    const un = $("#f-un").value.trim() || unidadePadrao(m);
+    const ad = numVal("f-ad"), pk = numVal("f-pk");
+    const pd = ins ? NaN : numVal("f-pd");
+    if (!ins && !(pd > 0)) return setErr("Informe quanto sai a cada dose.");
+    if (!(ad >= 1 && ad <= 90)) return setErr("Informe de 1 a 90 dias para o aviso.");
+    const d = { stockOn: true, stockUnit: un, pack: isNaN(pk) ? 0 : Math.round(pk), alertDays: Math.round(ad) };
+    if (!ins) d.perDose = pd;
+    if (on) return guardado(() => updateDoc(doc(db, "meds", m.id), d), "Estoque configurado");
+    const q = numVal("f-q");
+    if (isNaN(q) || q < 0 || q > 100000) return setErr("Informe quanto tem em casa agora (pode ser zero).");
+    Object.assign(d, { stockQty: q, stockAt: serverTimestamp(), stockBy: S.uid });
+    guardado(async () => {
+      const b = writeBatch(db);
+      b.update(doc(db, "meds", m.id), d);
+      b.set(doc(collection(db, "stockLog")), { item: EST.chaveMed(m.id), type: "contagem", qty: q, delta: q, by: S.uid, ts: serverTimestamp(), note: "início do controle" });
+      await b.commit();
+    }, "Estoque controlado");
+  };
+  if (on) $("#stop").onclick = () => guardado(() => updateDoc(doc(db, "meds", m.id), { stockOn: false }), "Estoque deste remédio não é mais controlado");
+}
+
 function viewRel() {
   const pill = (v, t) => '<button class="pill" data-act="rel-dias" data-v="' + v + '" aria-pressed="' + (String(S.relDias) === String(v)) + '">' + t + "</button>";
   let h = '<div class="card stack"><div><h2>Relatório para o médico</h2><p class="muted small" style="margin:4px 0 0">Pressão e glicemia juntas, remédios, aplicações de insulina e gráficos do período.</p></div>';
@@ -495,12 +745,14 @@ function render() {
   });
   const n = pendentes().length;
   const dot = $("#dot"); dot.hidden = !n; dot.textContent = n;
+  const nc = compras().length;
+  const dot2 = $("#dot2"); dot2.hidden = !nc; dot2.textContent = nc;
   document.title = (n ? "(" + n + ") " : "") + "Cuidados da Vó";
   let h = "";
   if (S.err === "permission-denied") h += '<div class="notice bad">Seu acesso foi removido ou ainda não foi liberado. Fale com o administrador do app.</div>';
   else if (S.err) h += '<div class="notice bad">Problema ao sincronizar (' + esc(S.err) + "). Se os dados não atualizarem, feche e abra o app.</div>";
   if (!navigator.onLine) h += '<div class="notice">Sem internet. O que você registrar fica guardado e é enviado quando a conexão voltar.</div>';
-  h += S.tab === "hoje" ? viewHoje() : S.tab === "hist" ? viewHist() : S.tab === "meds" ? viewMeds() : viewRel();
+  h += S.tab === "hoje" ? viewHoje() : S.tab === "hist" ? viewHist() : S.tab === "meds" ? viewMeds() : S.tab === "est" ? viewEstoque() : viewRel();
   $("#main").innerHTML = h;
 }
 
@@ -509,8 +761,24 @@ function registrarDose(med, sched, extra) {
   const base = { type: "dose", medId: med.id, medName: med.name, kind: med.kind || "outro", doseText: textoDoseMed(med), by: S.uid, ts: serverTimestamp() };
   if (sched) base.sched = sched;
   Object.assign(base, extra || {});
-  if (sched) return setDoc(doc(db, "entries", "dose_" + med.id + "_" + sched.replace(/[-:]/g, "")), base);
-  return addDoc(collection(db, "entries"), base);
+  const ref = sched ? doc(db, "entries", "dose_" + med.id + "_" + sched.replace(/[-:]/g, "")) : doc(collection(db, "entries"));
+  const gasto = consumoDaDose(med, base);
+  if (!med.stockOn || !(gasto > 0)) return setDoc(ref, base);
+  // Dose e desconto do estoque entram juntos. Se a dose já foi registrada por outra pessoa, nada é descontado.
+  const b = writeBatch(db);
+  b.set(ref, base);
+  b.update(doc(db, "meds", med.id), { stockQty: increment(-gasto), stockAt: serverTimestamp(), stockBy: S.uid });
+  return b.commit();
+}
+function consumoDaDose(med, dose) {
+  if (ehInsulina(med)) return Number(dose.units != null ? dose.units : med.units) || 0;
+  return med.perDose > 0 ? med.perDose : 1;
+}
+/** Texto "restam X" para depois de registrar uma dose. */
+function restamApos(med, dose) {
+  if (!med.stockOn) return "";
+  const q = Math.max(0, (Number(med.stockQty) || 0) - consumoDaDose(med, dose || {}));
+  return " · restam " + fmtNum(q) + " " + (med.stockUnit || "unidades");
 }
 
 function sheetMedicao() {
@@ -575,7 +843,7 @@ function sheetInsulina(med, sched) {
     const extra = { units: un, site: loc, doseText: fmtNum(un) + " UI" };
     if (!isNaN(gb)) { if (!(gb >= 20 && gb <= 600)) return setErr("Confira a glicemia anterior."); extra.glicBefore = Math.round(gb); }
     const nota = $("#f-note").value.trim(); if (nota) extra.note = nota;
-    guardado(() => registrarDose(med, sched, extra), "Aplicação registrada");
+    guardado(() => registrarDose(med, sched, extra), "Aplicação registrada" + restamApos(med, extra));
   };
 }
 
@@ -963,6 +1231,17 @@ document.addEventListener("click", ev => {
   else if (act === "antigos") carregarAntigos();
   else if (act === "more") { S.more += 60; render(); }
   else if (act === "edit-entry") { const e = entradas().find(x => x.id === a.dataset.id); if (e) sheetEditarRegistro(e); }
+  else if (act === "est-ver") { S.tab = "est"; render(); window.scrollTo(0, 0); }
+  else if (act === "est-entrada") { const it = itemPorChave(a.dataset.key); if (it) sheetEntrada(it); }
+  else if (act === "est-contagem") { const it = itemPorChave(a.dataset.key); if (it) sheetContagem(it); }
+  else if (act === "est-uso") { const it = itemPorChave(a.dataset.key); if (it) sheetUso(it); }
+  else if (act === "est-uso1") { const it = itemPorChave(a.dataset.key); if (it) usoRapido(it); }
+  else if (act === "est-cfg") {
+    const it = itemPorChave(a.dataset.key);
+    if (it) { if (it.tipo === "med") sheetControleMed(it.raw); else sheetItem(it.raw); }
+  }
+  else if (act === "est-controlar") { const m = S.meds.find(x => x.id === a.dataset.id); if (m) sheetControleMed(m); }
+  else if (act === "est-novo") sheetItem(null, a.dataset.preset || "");
   else if (act === "edit-med") { const m = S.meds.find(x => x.id === a.dataset.id); if (m) sheetMed(m); }
   else if (act === "dose-livre") { const m = S.meds.find(x => x.id === a.dataset.id); if (m) sheetInsulina(m, null); }
   else if (act === "dose-ins") {
@@ -976,7 +1255,7 @@ document.addEventListener("click", ev => {
     const s = slotsComStatus(dayStr(new Date())).find(x => x.key === key);
     if (!s) { render(); return; }
     if (s.given) { toast("Já foi registrada por " + nomeDe(s.given.by)); render(); return; }
-    registrarDose(s.med, s.sched, {}).then(() => toast("Dose registrada")).catch(e => {
+    registrarDose(s.med, s.sched, {}).then(() => toast("Dose registrada" + restamApos(s.med, {}))).catch(e => {
       toast(e && e.code === "permission-denied" ? "Outra pessoa acabou de registrar esta dose." : "Não foi possível registrar. Tente de novo.");
     });
     render();

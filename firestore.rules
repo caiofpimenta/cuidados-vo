@@ -111,9 +111,55 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // Estoque: a quantidade guardada em remédios e suprimentos.
+    function validQty(d) {
+      return d.stockQty is number && d.stockQty >= -100000 && d.stockQty <= 1000000;
+    }
+
+    // Remédios: qualquer cuidador cadastra; só o administrador corrige. A exceção é o estoque
+    // (controlar, repor, contar), que qualquer cuidador atualiza, sem mexer no resto do cadastro.
     match /meds/{id} {
       allow read: if isMember();
       allow create: if isMember() && request.resource.data.by == request.auth.uid;
+      allow update: if isAdmin()
+        || (isMember()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['stockOn', 'stockQty', 'stockAt', 'stockBy', 'stockUnit', 'perDose', 'pack', 'alertDays'])
+            && (!('stockQty' in request.resource.data) || validQty(request.resource.data)));
+      allow delete: if isAdmin();
+    }
+
+    // Suprimentos (fraldas, tiras de glicemia...): qualquer cuidador cria e atualiza; só o administrador apaga.
+    match /supplies/{id} {
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && validQty(request.resource.data);
+      allow update: if isAdmin()
+        || (isMember()
+            && request.resource.data.by == resource.data.by
+            && request.resource.data.name is string
+            && request.resource.data.name.size() > 0
+            && request.resource.data.name.size() <= 60
+            && validQty(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    // Movimentações de estoque (chegou mais, usou, contagem): qualquer cuidador anota, o horário é o do servidor;
+    // só o administrador corrige ou apaga.
+    match /stockLog/{id} {
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.ts == request.time
+        && request.resource.data.item is string
+        && request.resource.data.type in ['entrada', 'saida', 'contagem']
+        && request.resource.data.qty is number
+        && request.resource.data.qty >= 0
+        && request.resource.data.qty <= 1000000;
       allow update, delete: if isAdmin();
     }
 
