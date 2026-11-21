@@ -82,16 +82,21 @@ git push -u origin main
 ```
 
 3. No GitHub: **Settings** > **Pages** > Source: **Deploy from a branch** > Branch `main`, pasta `/ (root)`. Em alguns minutos o endereço aparece: `https://SEU_USUARIO.github.io/cuidados-vo/`.
+
+   **Endereço próprio (o que está em uso neste projeto):** se o seu `SEU_USUARIO.github.io` já usa um domínio próprio, o GitHub serve todos os projetos nesse domínio, misturados com o site pessoal. Para isolar o app, use um subdomínio:
+   - No DNS do domínio (aqui, Registro.br > Editar zona), crie um `CNAME` chamado `cuidados` apontando para `SEU_USUARIO.github.io`.
+   - No GitHub: **Settings** > **Pages** > **Custom domain**: `cuidados.caiopimenta.art.br`. Quando o certificado sair, ligue **Enforce HTTPS**.
+   - O endereço do app passa a ser `https://cuidados.caiopimenta.art.br`.
 4. **Settings** > **Secrets and variables** > **Actions** > **New repository secret**. Nome: `FIREBASE_SERVICE_ACCOUNT`. Valor: o conteúdo inteiro do `.json` do passo 5.
 5. Aba **Actions**: se pedir, habilite os workflows. Abra **Lembretes de remédio** > **Run workflow** para testar. Deve terminar em verde e escrever "Nada a avisar."
 
 ## 7. Autorizar o endereço no Firebase
 
-**Authentication** > aba **Configurações** > **Domínios autorizados** > **Adicionar domínio**: `SEU_USUARIO.github.io`.
+**Authentication** > aba **Configurações** > **Domínios autorizados** > **Adicionar domínio**: o domínio em que o app fica (`SEU_USUARIO.github.io` ou, neste projeto, `cuidados.caiopimenta.art.br`). Para entrar com usuário e senha isso normalmente não é obrigatório, mas deixa tudo em ordem se algum dia o app usar outro tipo de login.
 
 ## 8. Primeiro acesso do administrador (você)
 
-1. Abra o endereço do GitHub Pages no celular.
+1. Abra o endereço do app (`https://cuidados.caiopimenta.art.br`) no celular.
 2. Toque em **Sou o administrador e vou instalar o app**.
 3. Preencha: a chave de instalação do passo 3, o nome da paciente, seu nome, usuário e senha, e o **código da família** que você escolheu para os cuidadores.
 4. Pronto. Isso só funciona uma vez. Depois que o banco tem a configuração, ninguém mais consegue se tornar administrador.
